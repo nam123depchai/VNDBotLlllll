@@ -10,13 +10,15 @@ import { execSync } from "node:child_process";
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(artifactDir, "../..");
 
 async function buildAll() {
   // 🔥 Push database schema trước khi build
   console.log("📊 Pushing database schema...");
   try {
-    execSync("cd lib/db && pnpm run push", { 
-      cwd: path.resolve(artifactDir, ".."),
+    const dbPath = path.resolve(projectRoot, "lib/db");
+    execSync("pnpm run push", { 
+      cwd: dbPath,
       stdio: "inherit" 
     });
     console.log("✅ Database schema pushed successfully!");
