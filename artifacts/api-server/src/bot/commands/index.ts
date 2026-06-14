@@ -4,6 +4,10 @@ import * as taixiu from "./taixiu.js";
 import * as bangxephang from "./bangxephang.js";
 import * as chuyentien from "./chuyentien.js";
 import * as daily from "./daily.js";
+import * as baucua from "./baucua.js";
+import * as blackjack from "./blackjack.js";
+import * as daga from "./daga.js";
+import * as tuimu from "./tuimu.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -19,6 +23,13 @@ export const commands: Map<string, Command> = new Map([
   [bangxephang.data.name, bangxephang as Command],
   [chuyentien.data.name, chuyentien as Command],
   [daily.data.name, daily as Command],
+  [baucua.data.name, baucua as Command],
+  [blackjack.data.name, blackjack as Command],
+  [daga.data.name, daga as Command],
+  [tuimu.data.name, tuimu as Command],
+  [tuimu.tuimuThuong.data.name, tuimu.tuimuThuong as Command],
+  [tuimu.tuimuVip.data.name, tuimu.tuimuVip as Command],
+  [tuimu.tuimuSieu.data.name, tuimu.tuimuSieu as Command],
 ]);
 
 export const commandBuilders = [
@@ -28,4 +39,11 @@ export const commandBuilders = [
   bangxephang.data.toJSON(),
   chuyentien.data.toJSON(),
   daily.data.toJSON(),
+  baucua.data.toJSON(),
+  blackjack.data.toJSON(),
+  daga.data.toJSON(),
+  tuimu.data.toJSON(),
+  tuimu.tuimuThuong.data.toJSON(),
+  tuimu.tuimuVip.data.toJSON(),
+  tuimu.tuimuSieu.data.toJSON(),
 ];
