@@ -8,6 +8,13 @@ import * as baucua from "./baucua.js";
 import * as blackjack from "./blackjack.js";
 import * as daga from "./daga.js";
 import * as tuimu from "./tuimu.js";
+import * as nganhang from "./nganhang.js";
+import * as gui from "./gui.js";
+import * as rut from "./rut.js";
+import * as vay from "./vay.js";
+import * as trano from "./trano.js";
+import * as nhiemvu from "./nhiemvu.js";
+import * as nhiemvuNhan from "./nhiemvu-nhan.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -30,6 +37,13 @@ export const commands: Map<string, Command> = new Map([
   [tuimu.tuimuThuong.data.name, tuimu.tuimuThuong as Command],
   [tuimu.tuimuVip.data.name, tuimu.tuimuVip as Command],
   [tuimu.tuimuSieu.data.name, tuimu.tuimuSieu as Command],
+  [nganhang.data.name, nganhang as Command],
+  [gui.data.name, gui as Command],
+  [rut.data.name, rut as Command],
+  [vay.data.name, vay as Command],
+  [trano.data.name, trano as Command],
+  [nhiemvu.data.name, nhiemvu as Command],
+  [nhiemvuNhan.data.name, nhiemvuNhan as Command],
 ]);
 
 export const commandBuilders = [
@@ -46,4 +60,11 @@ export const commandBuilders = [
   tuimu.tuimuThuong.data.toJSON(),
   tuimu.tuimuVip.data.toJSON(),
   tuimu.tuimuSieu.data.toJSON(),
+  nganhang.data.toJSON(),
+  gui.data.toJSON(),
+  rut.data.toJSON(),
+  vay.data.toJSON(),
+  trano.data.toJSON(),
+  nhiemvu.data.toJSON(),
+  nhiemvuNhan.data.toJSON(),
 ];

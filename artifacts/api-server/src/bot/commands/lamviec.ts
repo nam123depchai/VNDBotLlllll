@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import { getOrCreateUser, updateBalance, updateWorkTime } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
+import { incrementQuestProgress, incrementEarnQuest } from "../utils/quests.js";
 
 const COOLDOWN_MS = 60 * 60 * 1000;
 const MIN_EARN = 100_000;
@@ -55,6 +56,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await updateBalance(interaction.user.id, newBalance);
   await updateWorkTime(interaction.user.id);
+  await incrementQuestProgress(interaction.user.id, "work");
+  await incrementEarnQuest(interaction.user.id, earned);
 
   const embed = new EmbedBuilder()
     .setColor(0x00cc66)

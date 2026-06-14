@@ -25,7 +25,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setThumbnail(targetUser.displayAvatarURL())
     .addFields(
       { name: "👤 Người dùng", value: `<@${targetUser.id}>`, inline: true },
-      { name: "💵 Số dư", value: `**${formatVND(user.balance)}**`, inline: true }
+      { name: "💵 Số dư ví", value: `**${formatVND(user.balance)}**`, inline: true },
+      { name: "🏦 Ngân hàng", value: `**${formatVND(user.bankBalance)}**`, inline: true },
+      { name: "💰 Tổng tài sản", value: `**${formatVND(user.balance + user.bankBalance)}**`, inline: true },
+      { name: "💸 Nợ", value: user.loanAmount > 0 ? `**${formatVND(user.loanAmount)}**` : "Không có nợ ✅", inline: true }
     )
     .setFooter({ text: isSelf ? "Đây là số dư của bạn" : `Số dư của ${targetUser.username}` })
     .setTimestamp();

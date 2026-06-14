@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
+import { incrementQuestProgress } from "../utils/quests.js";
 
 const ICONS = {
   bau: "🌳",
@@ -116,6 +117,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const newBalance = user.balance - betAmount + winAmount;
 
   await updateBalance(interaction.user.id, newBalance);
+  await incrementQuestProgress(interaction.user.id, "gamble");
+  if (matches > 0) await incrementQuestProgress(interaction.user.id, "win");
 
   const rollDisplay = roll.map((r) => `${ICONS[r as keyof typeof ICONS]} ${NAMES[r]}`).join(" — ");
   const resultLabel = matches === 0

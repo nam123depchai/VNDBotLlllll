@@ -10,6 +10,7 @@ import {
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { activeGames, cleanupOldGames } from "../utils/game-state.js";
+import { incrementQuestProgress } from "../utils/quests.js";
 
 export const data = new SlashCommandBuilder()
   .setName("daga")
@@ -184,6 +185,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     await updateBalance(interaction.user.id, newChallengerBalance);
     await updateBalance(opponent.id, newOpponentBalance);
+    await incrementQuestProgress(interaction.user.id, "gamble");
+    await incrementQuestProgress(opponent.id, "gamble");
+    if (isWin) {
+      await incrementQuestProgress(interaction.user.id, "win");
+    } else if (!isDraw) {
+      await incrementQuestProgress(opponent.id, "win");
+    }
 
     const resultEmbed = new EmbedBuilder()
       .setColor(color)

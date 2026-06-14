@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND, parseBetAmount } from "../utils/currency.js";
+import { incrementQuestProgress } from "../utils/quests.js";
 
 function rollDice(): number[] {
   return [
@@ -89,6 +90,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     : user.balance - betAmount;
 
   await updateBalance(interaction.user.id, Math.max(0, newBalance));
+  await incrementQuestProgress(interaction.user.id, "gamble");
+  if (isWin) await incrementQuestProgress(interaction.user.id, "win");
 
   const diceDisplay = dice.map(getDiceEmoji).join(" ");
   const resultLabel = result === "T" ? "🔴 Tài" : "🔵 Xỉu";

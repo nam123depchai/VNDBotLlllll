@@ -10,6 +10,7 @@ import {
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { activeGames, cleanupOldGames } from "../utils/game-state.js";
+import { incrementQuestProgress } from "../utils/quests.js";
 
 interface Card { suit: string; rank: string; value: number; }
 
@@ -308,6 +309,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       await updateBalance(interaction.user.id, newBalance);
+      await incrementQuestProgress(interaction.user.id, "gamble");
+      if (isWin) await incrementQuestProgress(interaction.user.id, "win");
 
       const resultEmbed = new EmbedBuilder()
         .setColor(color).setTitle(title)
