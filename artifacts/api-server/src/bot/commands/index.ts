@@ -17,7 +17,6 @@ import * as nhiemvu from "./nhiemvu.js";
 import * as nhiemvuNhan from "./nhiemvu-nhan.js";
 import * as hutixi from "./hutixi.js";
 import * as lamphat from "./lamphat.js";
-import * as chonglamphat from "./chonglamphat.js";
 import * as level from "./level.js";
 import * as thanhtich from "./thanhtich.js";
 import * as sanck from "./sanck.js";
@@ -27,8 +26,11 @@ import * as dautu from "./dautu.js";
 import * as xoso from "./xoso.js";
 import * as cauca from "./cauca.js";
 import * as tuido from "./tuido.js";
+import * as shopcauca from "./shopcauca.js";
+import * as banca from "./banca.js";
 import * as dauboss from "./dauboss.js";
 import * as topboss from "./topboss.js";
+import * as resetthitruong from "./resetthitruong.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -60,7 +62,6 @@ export const commands: Map<string, Command> = new Map([
   [nhiemvuNhan.data.name, nhiemvuNhan as Command],
   [hutixi.data.name, hutixi as Command],
   [lamphat.data.name, lamphat as Command],
-  [chonglamphat.data.name, chonglamphat as Command],
   [level.data.name, level as Command],
   [thanhtich.data.name, thanhtich as Command],
   [sanck.data.name, sanck as Command],
@@ -70,8 +71,11 @@ export const commands: Map<string, Command> = new Map([
   [xoso.data.name, xoso as Command],
   [cauca.data.name, cauca as Command],
   [tuido.data.name, tuido as Command],
+  [shopcauca.data.name, shopcauca as Command],
+  [banca.data.name, banca as Command],
   [dauboss.data.name, dauboss as Command],
   [topboss.data.name, topboss as Command],
+  [resetthitruong.data.name, resetthitruong as Command],
 ]);
 
 export const commandBuilders = [
@@ -97,7 +101,6 @@ export const commandBuilders = [
   nhiemvuNhan.data.toJSON(),
   hutixi.data.toJSON(),
   lamphat.data.toJSON(),
-  chonglamphat.data.toJSON(),
   level.data.toJSON(),
   thanhtich.data.toJSON(),
   sanck.data.toJSON(),
@@ -107,6 +110,9 @@ export const commandBuilders = [
   xoso.data.toJSON(),
   cauca.data.toJSON(),
   tuido.data.toJSON(),
+  shopcauca.data.toJSON(),
+  banca.data.toJSON(),
   dauboss.data.toJSON(),
   topboss.data.toJSON(),
+  resetthitruong.data.toJSON(),
 ];

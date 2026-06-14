@@ -25,6 +25,7 @@ export const userFishingGearTable = pgTable("user_fishing_gear", {
   hasRod: boolean("has_rod").notNull().default(false),
   rodLevel: integer("rod_level").notNull().default(0),
   totalFishCaught: integer("total_fish_caught").notNull().default(0),
+  bait: integer("bait").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
