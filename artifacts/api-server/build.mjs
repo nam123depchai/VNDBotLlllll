@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { execSync } from "node:child_process";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -11,6 +12,19 @@ globalThis.require = createRequire(import.meta.url);
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function buildAll() {
+  // 🔥 Push database schema trước khi build
+  console.log("📊 Pushing database schema...");
+  try {
+    execSync("cd lib/db && pnpm run push", { 
+      cwd: path.resolve(artifactDir, ".."),
+      stdio: "inherit" 
+    });
+    console.log("✅ Database schema pushed successfully!");
+  } catch (error) {
+    console.error("❌ Failed to push database schema:", error.message);
+    // Không exit, để build tiếp tục (có thể schema đã tồn tại)
+  }
+
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
