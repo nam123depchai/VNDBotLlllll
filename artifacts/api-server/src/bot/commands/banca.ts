@@ -18,10 +18,12 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const userId = interaction.user.id.toString(); // ✅ Convert to string
+
     const fish = await db
       .select()
       .from(fishInventoryTable)
-      .where(eq(fishInventoryTable.discordId, interaction.user.id));
+      .where(eq(fishInventoryTable.discordId, userId)); // ✅ Use string userId
 
     if (fish.length === 0) {
       await interaction.reply({
@@ -97,11 +99,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           for (const f of fish) {
             earned += f.value * f.quantity;
           }
-          await db.delete(fishInventoryTable).where(eq(fishInventoryTable.discordId, interaction.user.id));
+          await db.delete(fishInventoryTable).where(eq(fishInventoryTable.discordId, userId));
           await db
             .update(discordUsersTable)
             .set({ balance: user.balance + earned, updatedAt: new Date() })
-            .where(eq(discordUsersTable.discordId, interaction.user.id));
+            .where(eq(discordUsersTable.discordId, userId));
 
           await i.update({
             content: `💰 Đã bán tất cả cá! +${formatVND(earned)}`,
@@ -113,7 +115,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
         // Sell individual fish
         const fishId = parseInt(i.customId.replace("sell_all_", ""), 10);
-        
+
         // Validate fishId
         if (isNaN(fishId)) {
           await i.reply({
@@ -137,7 +139,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         await db
           .update(discordUsersTable)
           .set({ balance: user.balance + earned, updatedAt: new Date() })
-          .where(eq(discordUsersTable.discordId, interaction.user.id));
+          .where(eq(discordUsersTable.discordId, userId));
 
         await i.update({
           content: `💰 Đã bán ${target.emoji} **${target.fishName}** x${target.quantity}! +${formatVND(earned)}`,
