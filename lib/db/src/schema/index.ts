@@ -6,3 +6,4 @@ export * from "./stocks";
 export * from "./fish-inventory";
 export * from "./boss-leaderboard";
 export * from "./lottery";
+export * from "./redemption-codes";
