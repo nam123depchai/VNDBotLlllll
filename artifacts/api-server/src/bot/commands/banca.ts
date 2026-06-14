@@ -36,7 +36,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setDescription("Chọn cá để bán hoặc bán tất cả.");
 
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  const row = new ActionRowBuilder<ButtonBuilder>();
+  let row = new ActionRowBuilder<ButtonBuilder>();
   let totalValue = 0;
 
   for (const f of fish) {
@@ -50,7 +50,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     );
     if (row.components.length === 3) {
       rows.push(row);
-      new ActionRowBuilder<ButtonBuilder>();
+      row = new ActionRowBuilder<ButtonBuilder>();
     }
   }
   if (row.components.length > 0) rows.push(row);
