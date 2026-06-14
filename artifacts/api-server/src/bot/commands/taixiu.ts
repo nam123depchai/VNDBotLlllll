@@ -6,6 +6,11 @@ import {
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND, parseBetAmount } from "../utils/currency.js";
 import { incrementQuestProgress } from "../utils/quests.js";
+import { db, jackpotTable, discordUsersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+const JACKPOT_CONTRIBUTION_RATE = 0.05;
+const MAX_JACKPOT = 1_000_000_000;
 
 function rollDice(): number[] {
   return [
@@ -17,6 +22,41 @@ function rollDice(): number[] {
 
 function getDiceEmoji(n: number): string {
   return ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][n - 1]!;
+}
+
+function isTriple(dice: number[]): boolean {
+  return dice[0] === dice[1] && dice[1] === dice[2];
+}
+
+async function getOrCreateJackpot() {
+  const rows = await db.select().from(jackpotTable).where(eq(jackpotTable.id, 1));
+  if (rows.length === 0) {
+    await db.insert(jackpotTable).values({ id: 1, amount: 0, maxAmount: MAX_JACKPOT, updatedAt: new Date() });
+    return { id: 1, amount: 0, maxAmount: MAX_JACKPOT, updatedAt: new Date() };
+  }
+  return rows[0]!;
+}
+
+async function addToJackpot(betAmount: number) {
+  const contribution = Math.floor(betAmount * JACKPOT_CONTRIBUTION_RATE);
+  const jp = await getOrCreateJackpot();
+  const newAmount = Math.min(jp.amount + contribution, MAX_JACKPOT);
+  await db
+    .update(jackpotTable)
+    .set({ amount: newAmount, updatedAt: new Date() })
+    .where(eq(jackpotTable.id, 1));
+  return newAmount;
+}
+
+async function hitJackpot(winnerId: string) {
+  const jp = await getOrCreateJackpot();
+  const amount = jp.amount;
+  // Reset về 0 sau khi nổ
+  await db
+    .update(jackpotTable)
+    .set({ amount: 0, updatedAt: new Date() })
+    .where(eq(jackpotTable.id, 1));
+  return amount;
 }
 
 export const data = new SlashCommandBuilder()
@@ -82,14 +122,30 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const total = dice.reduce((a, b) => a + b, 0);
   const result = total >= 11 ? "T" : "X";
   const isWin = result === choice;
+  const isTrip = isTriple(dice);
 
   const winMultiplier = 1.9;
   const winAmount = Math.floor(betAmount * winMultiplier);
-  const newBalance = isWin
+  let newBalance = isWin
     ? user.balance + winAmount
     : user.balance - betAmount;
 
-  await updateBalance(interaction.user.id, Math.max(0, newBalance));
+  // Tích vào nổ hũ
+  const jackpotAmount = await addToJackpot(betAmount);
+
+  // Nổ hũ! 3 xúc xắc giống nhau
+  let jackpotWin = 0;
+  if (isTrip) {
+    jackpotWin = await hitJackpot(interaction.user.id);
+    newBalance += jackpotWin;
+    await db
+      .update(discordUsersTable)
+      .set({ balance: newBalance, updatedAt: new Date() })
+      .where(eq(discordUsersTable.discordId, interaction.user.id));
+  } else {
+    await updateBalance(interaction.user.id, Math.max(0, newBalance));
+  }
+
   await incrementQuestProgress(interaction.user.id, "gamble");
   if (isWin) await incrementQuestProgress(interaction.user.id, "win");
 
@@ -98,10 +154,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const choiceLabel = choice === "T" ? "🔴 Tài" : "🔵 Xỉu";
 
   const embed = new EmbedBuilder()
-    .setColor(isWin ? 0x00cc66 : 0xff4444)
-    .setTitle(isWin ? "🎉 BẠN THẮNG!" : "😢 BẠN THUA!")
+    .setColor(isTrip ? 0xffd700 : isWin ? 0x00cc66 : 0xff4444)
+    .setTitle(isTrip ? "🎉🎉🎉 NỔ HŨ TÀI XỈU! 🎉🎉🎉" : isWin ? "🎉 BẠN THẮNG!" : "😢 BẠN THUA!")
+    .setDescription(
+      isTrip
+        ? `🎰 **3 xúc xắc giống nhau!** ${diceDisplay}\n🎉 **${dice[0]}-${dice[0]}-${dice[0]}** 🎉\n\n💰 Bạn đã **NỔ HŨ** và ăn **${formatVND(jackpotWin)}**!`
+        : `🎲 Xúc xắc: ${diceDisplay} = **${total}**`
+    )
     .addFields(
-      { name: "🎲 Xúc xắc", value: `${diceDisplay} = **${total}**`, inline: false },
       { name: "📊 Kết quả", value: resultLabel, inline: true },
       { name: "🎯 Bạn cược", value: choiceLabel, inline: true },
       {
@@ -109,10 +169,22 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         value: isWin ? `**+${formatVND(winAmount)}**` : `**-${formatVND(betAmount)}**`,
         inline: true,
       },
-      { name: "🏦 Số dư mới", value: `**${formatVND(Math.max(0, newBalance))}**`, inline: false }
-    )
-    .setFooter({ text: isWin ? "Hên quá! Chơi tiếp không? 😏" : "Xui rồi... Thử lại lần nữa không? 🥲" })
+      { name: "🎰 Nổ hũ hiện tại", value: `**${formatVND(jackpotAmount)}**`, inline: true }
+    );
+
+  if (isTrip) {
+    embed.addFields(
+      { name: "🏆 Tiền nổ hũ", value: `**+${formatVND(jackpotWin)}**`, inline: true },
+      { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true }
+    );
+  } else {
+    embed.addFields(
+      { name: "🏦 Số dư mới", value: `**${formatVND(Math.max(0, newBalance))}**`, inline: true }
+    );
+  }
+
+  embed.setFooter({ text: isTrip ? "🎉🎉🎉 TRÚNG LỚN! 🎉🎉🎉" : isWin ? "Hên quá! Chơi tiếp không? 😏" : "Xui rồi... Thử lại lần nữa không? 🥲" })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.reply({ embeds: [embed], content: isTrip ? `<@${interaction.user.id}> ĐÃ NỔ HŨ TÀI XỈU! 🎉🎉🎉` : undefined });
 }

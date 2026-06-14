@@ -15,6 +15,7 @@ import * as vay from "./vay.js";
 import * as trano from "./trano.js";
 import * as nhiemvu from "./nhiemvu.js";
 import * as nhiemvuNhan from "./nhiemvu-nhan.js";
+import * as hutixi from "./hutixi.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -44,6 +45,7 @@ export const commands: Map<string, Command> = new Map([
   [trano.data.name, trano as Command],
   [nhiemvu.data.name, nhiemvu as Command],
   [nhiemvuNhan.data.name, nhiemvuNhan as Command],
+  [hutixi.data.name, hutixi as Command],
 ]);
 
 export const commandBuilders = [
@@ -67,4 +69,5 @@ export const commandBuilders = [
   trano.data.toJSON(),
   nhiemvu.data.toJSON(),
   nhiemvuNhan.data.toJSON(),
+  hutixi.data.toJSON(),
 ];
