@@ -11,12 +11,21 @@ import { commands, commandBuilders } from "./commands/index.js";
 
 async function registerCommands(token: string, clientId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(token);
+  const guildId = process.env["DISCORD_GUILD_ID"];
+
   try {
     logger.info("Đang đăng ký slash commands...");
-    await rest.put(Routes.applicationCommands(clientId), {
-      body: commandBuilders,
-    });
-    logger.info({ count: commandBuilders.length }, "Đăng ký slash commands thành công");
+    if (guildId) {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: commandBuilders,
+      });
+      logger.info({ count: commandBuilders.length, mode: "guild", guildId }, "Đăng ký slash commands thành công (tức thì)");
+    } else {
+      await rest.put(Routes.applicationCommands(clientId), {
+        body: commandBuilders,
+      });
+      logger.info({ count: commandBuilders.length, mode: "global" }, "Đăng ký slash commands thành công (cần ~1h để cập nhật)");
+    }
   } catch (err) {
     logger.error({ err }, "Lỗi khi đăng ký slash commands");
     throw err;
@@ -28,12 +37,12 @@ export async function startBot(): Promise<void> {
   const clientId = process.env["DISCORD_CLIENT_ID"];
 
   if (!token) {
-    logger.warn("DISCORD_BOT_TOKEN chưa được cấu hình — bot Discord sẽ không khởi động. Cung cấp token để kích hoạt bot.");
+    logger.warn("DISCORD_BOT_TOKEN chưa được cấu hình — bot Discord sẽ không khởi động.");
     return;
   }
 
   if (!clientId) {
-    logger.warn("DISCORD_CLIENT_ID chưa được cấu hình — bot Discord sẽ không khởi động. Cung cấp Client ID để kích hoạt bot.");
+    logger.warn("DISCORD_CLIENT_ID chưa được cấu hình — bot Discord sẽ không khởi động.");
     return;
   }
 
@@ -43,7 +52,7 @@ export async function startBot(): Promise<void> {
     intents: [GatewayIntentBits.Guilds],
   });
 
-  client.once("ready", (c) => {
+  client.once("clientReady", (c) => {
     logger.info({ tag: c.user.tag }, "Bot Discord đã đăng nhập thành công!");
     c.user.setActivity("Tài Xỉu 🎲", { type: ActivityType.Playing });
   });
@@ -61,11 +70,11 @@ export async function startBot(): Promise<void> {
       await command.execute(interaction);
     } catch (err) {
       logger.error({ err, commandName: interaction.commandName }, "Lỗi khi xử lý lệnh");
-      const errorMsg = { content: "❌ Có lỗi xảy ra khi xử lý lệnh. Vui lòng thử lại!", ephemeral: true };
+      const errContent = "❌ Có lỗi xảy ra khi xử lý lệnh. Vui lòng thử lại!";
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorMsg).catch(() => {});
+        await interaction.followUp({ content: errContent, ephemeral: true }).catch(() => {});
       } else {
-        await interaction.reply(errorMsg).catch(() => {});
+        await interaction.reply({ content: errContent, ephemeral: true }).catch(() => {});
       }
     }
   });
