@@ -5,7 +5,7 @@ import {
 } from "discord.js";
 import { db, discordUsersTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { formatVND } from "../utils/currency.js";
+import { formatVND, formatVNDShort } from "../utils/currency.js";
 
 export const data = new SlashCommandBuilder()
   .setName("lamphat")
@@ -47,7 +47,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const top3Text = top3.map((u, i) => {
     const emoji = ["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`;
     const total = u.balance + u.bankBalance;
-    return `${emoji} **${u.username}** — ${formatVND(total)}`;
+    return `${emoji} **${u.username}** — ${formatVNDShort(total)}`;
   }).join("\n");
 
   const barLen = 20;
@@ -60,11 +60,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setDescription(`${bar} **${inflationRate.toFixed(2)}%**`)
     .addFields(
       { name: "👥 Tổng người dùng", value: `${stats.totalUsers.toLocaleString("vi-VN")}`, inline: true },
-      { name: "💰 Tổng tiền lưu thông", value: formatVND(totalMoney), inline: true },
-      { name: "🏦 Tổng ngân hàng", value: formatVND(stats.totalBank), inline: true },
-      { name: "💸 Tổng nợ", value: formatVND(stats.totalLoan), inline: true },
-      { name: "📊 Tiền trung bình", value: formatVND(Math.floor(stats.avgBalance)), inline: true },
-      { name: "📈 Tiền cung", value: formatVND(moneySupply), inline: true },
+      { name: "💰 Tổng tiền lưu thông", value: formatVNDShort(totalMoney), inline: true },
+      { name: "🏦 Tổng ngân hàng", value: formatVNDShort(stats.totalBank), inline: true },
+      { name: "💸 Tổng nợ", value: formatVNDShort(stats.totalLoan), inline: true },
+      { name: "📊 Tiền trung bình", value: formatVNDShort(Math.floor(stats.avgBalance)), inline: true },
+      { name: "📈 Tiền cung", value: formatVNDShort(moneySupply), inline: true },
       { name: "🏆 Top 3 Đại Gia", value: top3Text || "Chưa có ai", inline: false }
     )
     .setFooter({
