@@ -24,7 +24,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     })
     .from(discordUsersTable);
 
-  const stats = allUsers[0]!;
+  const raw = allUsers[0]!;
+  // PostgreSQL aggregate functions trả về string, phải parse
+  const stats = {
+    totalUsers: Number(raw.totalUsers) || 0,
+    totalBalance: Number(raw.totalBalance) || 0,
+    totalBank: Number(raw.totalBank) || 0,
+    totalLoan: Number(raw.totalLoan) || 0,
+    avgBalance: Number(raw.avgBalance) || 0,
+    maxBalance: Number(raw.maxBalance) || 0,
+  };
+
   const totalMoney = stats.totalBalance + stats.totalBank;
   const moneySupply = totalMoney + stats.totalLoan;
 
@@ -46,13 +56,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const top3Text = top3.map((u, i) => {
     const emoji = ["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`;
-    const total = u.balance + u.bankBalance;
+    const total = Number(u.balance) + Number(u.bankBalance);
     return `${emoji} **${u.username}** — ${formatVNDShort(total)}`;
   }).join("\n");
 
   const barLen = 20;
   const filled = Math.floor((inflationRate / 100) * barLen);
-  const bar = "💎".repeat(filled) + "⬜".repeat(barLen - filled);
+  const bar = "🟥".repeat(filled) + "⬜".repeat(barLen - filled);
 
   const embed = new EmbedBuilder()
     .setColor(isHyperInflation ? 0xff0000 : isStable ? 0x00cc66 : 0xff8800)
