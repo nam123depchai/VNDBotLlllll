@@ -21,7 +21,7 @@ const FISH_DATABASE = {
     { name: "Cá Rẻ", emoji: "🐟", value: 50_000, weight: 35, xp: 10 },
     { name: "Cá Trung", emoji: "🐠", value: 200_000, weight: 25, xp: 25 },
     { name: "Cá Mực", emoji: "🦁", value: 300_000, weight: 20, xp: 30 },
-    { name: "Cá Trắng", emoji: "◯", value: 80_000, weight: 15, xp: 15 },
+    { name: "Cá Trắng", emoji: "🪼", value: 80_000, weight: 15, xp: 15 },
   ],
   // Uncommon (rod level 1+)
   uncommon: [
@@ -43,8 +43,8 @@ const FISH_DATABASE = {
   // Trash
   trash: [
     { name: "Rác", emoji: "🗑️", value: 0, weight: 8, xp: 0 },
-    { name: "Giày Cũ", emoji: "🩾", value: 0, weight: 5, xp: 0 },
-    { name: "Chai Nhựa", emoji: "🣩", value: 0, weight: 3, xp: 0 },
+    { name: "Giày Cũ", emoji: "👟", value: 0, weight: 5, xp: 0 },
+    { name: "Chai Nhựa", emoji: "🍶", value: 0, weight: 3, xp: 0 },
   ],
 };
 
