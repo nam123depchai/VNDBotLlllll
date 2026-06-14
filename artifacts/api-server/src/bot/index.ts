@@ -16,16 +16,28 @@ async function registerCommands(token: string, clientId: string): Promise<void> 
   try {
     logger.info("Đang đăng ký slash commands...");
     if (guildId) {
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-        body: commandBuilders,
-      });
-      logger.info({ count: commandBuilders.length, mode: "guild", guildId }, "Đăng ký slash commands thành công (tức thì)");
-    } else {
-      await rest.put(Routes.applicationCommands(clientId), {
-        body: commandBuilders,
-      });
-      logger.info({ count: commandBuilders.length, mode: "global" }, "Đăng ký slash commands thành công (cần ~1h để cập nhật)");
+      try {
+        await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+          body: commandBuilders,
+        });
+        logger.info({ count: commandBuilders.length, mode: "guild", guildId }, "Đăng ký tức thì thành công");
+        return;
+      } catch (guildErr: unknown) {
+        const err = guildErr as { code?: number; message?: string };
+        if (err.code === 50001) {
+          logger.warn(
+            { guildId },
+            "Bot thiếu quyền application.commands trong server. Đăng ký global thay thế (cần ~1h)."
+          );
+        } else {
+          logger.warn({ err: guildErr }, "Lỗi đăng ký guild commands, fallback global...");
+        }
+      }
     }
+    await rest.put(Routes.applicationCommands(clientId), {
+      body: commandBuilders,
+    });
+    logger.info({ count: commandBuilders.length, mode: "global" }, "Đăng ký global thành công (cần ~1h)");
   } catch (err) {
     logger.error({ err }, "Lỗi khi đăng ký slash commands");
     throw err;
