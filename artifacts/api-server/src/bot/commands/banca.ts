@@ -17,104 +17,154 @@ export const data = new SlashCommandBuilder()
   .setDescription("Bán cá trong túi đồ để kiếm tiền");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const fish = await db
-    .select()
-    .from(fishInventoryTable)
-    .where(eq(fishInventoryTable.discordId, interaction.user.id));
+  try {
+    const fish = await db
+      .select()
+      .from(fishInventoryTable)
+      .where(eq(fishInventoryTable.discordId, interaction.user.id));
 
-  if (fish.length === 0) {
-    await interaction.reply({
-      content: "🧹 Bạn không có cá để bán! Dùng /cauca để bắt cá.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(0xffaa00)
-    .setTitle("🐟 Bán Cá")
-    .setDescription("Chọn cá để bán hoặc bán tất cả.");
-
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  let row = new ActionRowBuilder<ButtonBuilder>();
-  let totalValue = 0;
-
-  for (const f of fish) {
-    totalValue += f.value * f.quantity;
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`sell_all_${f.id}`)
-        .setLabel(`${f.fishName} x${f.quantity}`)
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji(f.emoji)
-    );
-    if (row.components.length === 3) {
-      rows.push(row);
-      row = new ActionRowBuilder<ButtonBuilder>();
-    }
-  }
-  if (row.components.length > 0) rows.push(row);
-
-  rows.push(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId("sell_all_fish")
-        .setLabel(`Bán tất cả (${formatVND(totalValue)})`)
-        .setStyle(ButtonStyle.Danger)
-        .setEmoji("💰")
-    )
-  );
-
-  const reply = await interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
-
-  const collector = reply.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 60_000,
-  });
-
-  collector.on("collect", async (i) => {
-    if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: "Không phải của bạn!", ephemeral: true });
-      return;
-    }
-
-    const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
-
-    if (i.customId === "sell_all_fish") {
-      // Sell all
-      let earned = 0;
-      for (const f of fish) {
-        earned += f.value * f.quantity;
-      }
-      await db.delete(fishInventoryTable).where(eq(fishInventoryTable.discordId, interaction.user.id));
-      await db
-        .update(discordUsersTable)
-        .set({ balance: user.balance + earned, updatedAt: new Date() })
-        .where(eq(discordUsersTable.discordId, interaction.user.id));
-
-      await i.update({
-        content: `💰 Đã bán tất cả cá! +${formatVND(earned)}`,
-        embeds: [],
-        components: [],
+    if (fish.length === 0) {
+      await interaction.reply({
+        content: "🧹 Bạn không có cá để bán! Dùng /cauca để bắt cá.",
+        ephemeral: true,
       });
       return;
     }
 
-    const fishId = parseInt(i.customId.replace("sell_all_", ""), 10);
-    const target = fish.find((f) => f.id === fishId);
-    if (!target) return;
+    const embed = new EmbedBuilder()
+      .setColor(0xffaa00)
+      .setTitle("🐟 Bán Cá")
+      .setDescription("Chọn cá để bán hoặc bán tất cả.");
 
-    const earned = target.value * target.quantity;
-    await db.delete(fishInventoryTable).where(eq(fishInventoryTable.id, fishId));
-    await db
-      .update(discordUsersTable)
-      .set({ balance: user.balance + earned, updatedAt: new Date() })
-      .where(eq(discordUsersTable.discordId, interaction.user.id));
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    let row = new ActionRowBuilder<ButtonBuilder>();
+    let totalValue = 0;
 
-    await i.update({
-      content: `💰 Đã bán ${target.emoji} **${target.fishName}** x${target.quantity}! +${formatVND(earned)}`,
-      embeds: [],
-      components: [],
+    for (const f of fish) {
+      totalValue += f.value * f.quantity;
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`sell_all_${f.id}`)
+          .setLabel(`${f.fishName} x${f.quantity}`)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji(f.emoji)
+      );
+      if (row.components.length === 3) {
+        rows.push(row);
+        row = new ActionRowBuilder<ButtonBuilder>();
+      }
+    }
+    if (row.components.length > 0) rows.push(row);
+
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId("sell_all_fish")
+          .setLabel(`Bán tất cả (${formatVND(totalValue)})`)
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji("💰")
+      )
+    );
+
+    const reply = await interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
+
+    const collector = reply.createMessageComponentCollector({
+      componentType: ComponentType.Button,
+      time: 60_000,
     });
-  });
+
+    collector.on("collect", async (i) => {
+      try {
+        if (i.user.id !== interaction.user.id) {
+          await i.reply({ content: "Không phải của bạn!", ephemeral: true });
+          return;
+        }
+
+        const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
+
+        // Validate user balance
+        if (!user || user.balance === null || user.balance === undefined) {
+          await i.reply({
+            content: "❌ Lỗi: Không thể lấy thông tin người dùng",
+            ephemeral: true,
+          });
+          return;
+        }
+
+        if (i.customId === "sell_all_fish") {
+          // Sell all
+          let earned = 0;
+          for (const f of fish) {
+            earned += f.value * f.quantity;
+          }
+          await db.delete(fishInventoryTable).where(eq(fishInventoryTable.discordId, interaction.user.id));
+          await db
+            .update(discordUsersTable)
+            .set({ balance: user.balance + earned, updatedAt: new Date() })
+            .where(eq(discordUsersTable.discordId, interaction.user.id));
+
+          await i.update({
+            content: `💰 Đã bán tất cả cá! +${formatVND(earned)}`,
+            embeds: [],
+            components: [],
+          });
+          return;
+        }
+
+        // Sell individual fish
+        const fishId = parseInt(i.customId.replace("sell_all_", ""), 10);
+        
+        // Validate fishId
+        if (isNaN(fishId)) {
+          await i.reply({
+            content: "❌ Lỗi: ID cá không hợp lệ",
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const target = fish.find((f) => f.id === fishId);
+        if (!target) {
+          await i.reply({
+            content: "❌ Không tìm thấy cá này trong túi đồ",
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const earned = target.value * target.quantity;
+        await db.delete(fishInventoryTable).where(eq(fishInventoryTable.id, fishId));
+        await db
+          .update(discordUsersTable)
+          .set({ balance: user.balance + earned, updatedAt: new Date() })
+          .where(eq(discordUsersTable.discordId, interaction.user.id));
+
+        await i.update({
+          content: `💰 Đã bán ${target.emoji} **${target.fishName}** x${target.quantity}! +${formatVND(earned)}`,
+          embeds: [],
+          components: [],
+        });
+      } catch (error) {
+        console.error("❌ Lỗi khi xử lý button click:", error);
+        try {
+          await i.reply({
+            content: `❌ Lỗi xảy ra: ${error instanceof Error ? error.message : "Không xác định"}`,
+            ephemeral: true,
+          });
+        } catch {
+          console.error("Không thể gửi error message");
+        }
+      }
+    });
+
+    collector.on("end", () => {
+      // Optional: handle collector end
+    });
+  } catch (error) {
+    console.error("❌ Lỗi trong lệnh banca:", error);
+    await interaction.reply({
+      content: `❌ Lỗi xảy ra khi xử lý lệnh: ${error instanceof Error ? error.message : "Không xác định"}`,
+      ephemeral: true,
+    });
+  }
 }
