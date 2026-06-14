@@ -9,8 +9,8 @@ import {
 } from "discord.js";
 import { db, fishInventoryTable, discordUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getOrCreateUser } from "../utils/db-helpers.js";
-import { formatVND } from "../utils/currency.js";
+import { getOrCreateUser } from "../utils/db-helpers";
+import { formatVND } from "../utils/currency";
 
 export const data = new SlashCommandBuilder()
   .setName("banca")
