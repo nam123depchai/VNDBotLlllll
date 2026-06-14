@@ -7,8 +7,8 @@ import { getOrCreateUser, updateBalance, updateWorkTime } from "../utils/db-help
 import { formatVND } from "../utils/currency.js";
 
 const COOLDOWN_MS = 60 * 60 * 1000;
-const MIN_EARN = 100;
-const MAX_EARN = 500;
+const MIN_EARN = 100_000;
+const MAX_EARN = 500_000;
 
 const WORK_MESSAGES = [
   { job: "Bán bánh mì", emoji: "🥖" },

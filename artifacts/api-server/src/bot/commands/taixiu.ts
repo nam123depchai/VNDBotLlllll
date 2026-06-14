@@ -68,11 +68,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  if (betAmount < 10) {
+  if (betAmount < 1_000) {
     const embed = new EmbedBuilder()
       .setColor(0xff4444)
       .setTitle("❌ Cược quá ít!")
-      .setDescription("Số tiền cược tối thiểu là **10₫**.");
+      .setDescription("Số tiền cược tối thiểu là **1.000₫**.");
     await interaction.reply({ embeds: [embed], ephemeral: true });
     return;
   }
