@@ -30,53 +30,62 @@ export const data = new SlashCommandBuilder()
   .setDescription("Đi làm để kiếm tiền (cooldown 1 giờ)");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
+  try {
+    const userId = interaction.user.id.toString(); // ✅ Convert to string
+    const user = await getOrCreateUser(userId, interaction.user.username);
 
-  if (user.lastWorkTime) {
-    const elapsed = Date.now() - new Date(user.lastWorkTime).getTime();
-    if (elapsed < COOLDOWN_MS) {
-      const remaining = COOLDOWN_MS - elapsed;
-      const mins = Math.floor(remaining / 60000);
-      const secs = Math.floor((remaining % 60000) / 1000);
+    if (user.lastWorkTime) {
+      const elapsed = Date.now() - new Date(user.lastWorkTime).getTime();
+      if (elapsed < COOLDOWN_MS) {
+        const remaining = COOLDOWN_MS - elapsed;
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
 
-      const embed = new EmbedBuilder()
-        .setColor(0xff4444)
-        .setTitle("⏰ Chưa đến giờ làm!")
-        .setDescription(`Bạn đang mệt rồi! Nghỉ ngơi thêm **${mins} phút ${secs} giây** nữa nhé.`)
-        .addFields({ name: "💵 Số dư hiện tại", value: formatVND(user.balance) })
-        .setFooter({ text: "Làm việc chăm chỉ nhưng cũng phải nghỉ ngơi 😄" });
+        const embed = new EmbedBuilder()
+          .setColor(0xff4444)
+          .setTitle("⏰ Chưa đến giờ làm!")
+          .setDescription(`Bạn đang mệt rồi! Nghỉ ngơi thêm **${mins} phút ${secs} giây** nữa nhé.`)
+          .addFields({ name: "💵 Số dư hiện tại", value: formatVND(user.balance) })
+          .setFooter({ text: "Làm việc chăm chỉ nhưng cũng phải nghỉ ngơi 😄" });
 
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-      return;
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+        return;
+      }
     }
+
+    const earned = Math.floor(Math.random() * (MAX_EARN - MIN_EARN + 1)) + MIN_EARN;
+    const newBalance = user.balance + earned;
+    const workEntry = WORK_MESSAGES[Math.floor(Math.random() * WORK_MESSAGES.length)]!;
+
+    await updateBalance(userId, newBalance); // ✅ Use string userId
+    await updateWorkTime(userId); // ✅ Use string userId
+    await incrementQuestProgress(userId, "work"); // ✅ Use string userId
+    await incrementEarnQuest(userId, earned); // ✅ Use string userId
+    await addXp(userId, 20); // ✅ Use string userId
+    await unlockAchievement(userId, "first_work"); // ✅ Use string userId
+    if (newBalance >= 1_000_000) await unlockAchievement(userId, "rich_1m");
+    if (newBalance >= 10_000_000) await unlockAchievement(userId, "rich_10m");
+    if (newBalance >= 100_000_000) await unlockAchievement(userId, "rich_100m");
+    if (newBalance >= 1_000_000_000) await unlockAchievement(userId, "rich_1b");
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00cc66)
+      .setTitle(`${workEntry.emoji} Đi Làm Thành Công!`)
+      .setDescription(`Bạn đã **${workEntry.job}** và kiếm được tiền!`)
+      .addFields(
+        { name: "💰 Kiếm được", value: `**+${formatVND(earned)}**`, inline: true },
+        { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true },
+        { name: "✨ XP", value: "**+20**", inline: true }
+      )
+      .setFooter({ text: "Quay lại sau 1 giờ để làm tiếp nhé! 💪" })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("❌ Lỗi trong lệnh lamviec:", error);
+    await interaction.reply({
+      content: `❌ Lỗi xảy ra: ${error instanceof Error ? error.message : "Không xác định"}`,
+      ephemeral: true,
+    });
   }
-
-  const earned = Math.floor(Math.random() * (MAX_EARN - MIN_EARN + 1)) + MIN_EARN;
-  const newBalance = user.balance + earned;
-  const workEntry = WORK_MESSAGES[Math.floor(Math.random() * WORK_MESSAGES.length)]!;
-
-  await updateBalance(interaction.user.id, newBalance);
-  await updateWorkTime(interaction.user.id);
-  await incrementQuestProgress(interaction.user.id, "work");
-  await incrementEarnQuest(interaction.user.id, earned);
-  await addXp(interaction.user.id, 20);
-  await unlockAchievement(interaction.user.id, "first_work");
-  if (newBalance >= 1_000_000) await unlockAchievement(interaction.user.id, "rich_1m");
-  if (newBalance >= 10_000_000) await unlockAchievement(interaction.user.id, "rich_10m");
-  if (newBalance >= 100_000_000) await unlockAchievement(interaction.user.id, "rich_100m");
-  if (newBalance >= 1_000_000_000) await unlockAchievement(interaction.user.id, "rich_1b");
-
-  const embed = new EmbedBuilder()
-    .setColor(0x00cc66)
-    .setTitle(`${workEntry.emoji} Đi Làm Thành Công!`)
-    .setDescription(`Bạn đã **${workEntry.job}** và kiếm được tiền!`)
-    .addFields(
-      { name: "💰 Kiếm được", value: `**+${formatVND(earned)}**`, inline: true },
-      { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true },
-      { name: "✨ XP", value: "**+20**", inline: true }
-    )
-    .setFooter({ text: "Quay lại sau 1 giờ để làm tiếp nhé! 💪" })
-    .setTimestamp();
-
-  await interaction.reply({ embeds: [embed] });
 }
