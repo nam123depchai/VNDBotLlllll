@@ -49,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setCustomId(`sell_all_${f.id}`)
           .setLabel(`${f.fishName} x${f.quantity}`)
           .setStyle(ButtonStyle.Primary)
-          .setEmoji(f.emoji)
+          .setEmoji(f.emoji?.match(/\p{Emoji}/u) ? f.emoji : "🐟")
       );
       if (row.components.length === 3) {
         rows.push(row);
