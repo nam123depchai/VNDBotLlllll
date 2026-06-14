@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import { logger } from "../lib/logger.js";
 import { commands, commandBuilders } from "./commands/index.js";
+import { initStocks, updateStockPrices } from "./utils/stock-init.js";
 
 async function registerCommands(token: string, clientId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(token);
@@ -67,6 +68,14 @@ export async function startBot(): Promise<void> {
   client.once("clientReady", (c) => {
     logger.info({ tag: c.user.tag }, "Bot Discord đã đăng nhập thành công!");
     c.user.setActivity("Tài Xỉu 🎲", { type: ActivityType.Playing });
+
+    // Init stocks
+    initStocks().catch(err => logger.error({ err }, "Lỗi init stocks"));
+
+    // Stock price update every 5 minutes
+    setInterval(() => {
+      updateStockPrices().catch(err => logger.error({ err }, "Lỗi update stock prices"));
+    }, 5 * 60 * 1000);
   });
 
   client.on("interactionCreate", async (interaction: Interaction) => {

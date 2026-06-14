@@ -3,7 +3,7 @@ import {
   type ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
+import { getOrCreateUser, updateBalance, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { incrementQuestProgress } from "../utils/quests.js";
 
@@ -119,6 +119,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await updateBalance(interaction.user.id, newBalance);
   await incrementQuestProgress(interaction.user.id, "gamble");
   if (matches > 0) await incrementQuestProgress(interaction.user.id, "win");
+  await addXp(interaction.user.id, matches > 0 ? 30 : 10);
 
   const rollDisplay = roll.map((r) => `${ICONS[r as keyof typeof ICONS]} ${NAMES[r]}`).join(" — ");
   const resultLabel = matches === 0

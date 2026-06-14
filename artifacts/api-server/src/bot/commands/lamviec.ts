@@ -3,9 +3,10 @@ import {
   type ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { getOrCreateUser, updateBalance, updateWorkTime } from "../utils/db-helpers.js";
+import { getOrCreateUser, updateBalance, updateWorkTime, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { incrementQuestProgress, incrementEarnQuest } from "../utils/quests.js";
+import { unlockAchievement } from "./thanhtich.js";
 
 const COOLDOWN_MS = 60 * 60 * 1000;
 const MIN_EARN = 100_000;
@@ -58,6 +59,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await updateWorkTime(interaction.user.id);
   await incrementQuestProgress(interaction.user.id, "work");
   await incrementEarnQuest(interaction.user.id, earned);
+  await addXp(interaction.user.id, 20);
+  await unlockAchievement(interaction.user.id, "first_work");
+  if (newBalance >= 1_000_000) await unlockAchievement(interaction.user.id, "rich_1m");
+  if (newBalance >= 10_000_000) await unlockAchievement(interaction.user.id, "rich_10m");
+  if (newBalance >= 100_000_000) await unlockAchievement(interaction.user.id, "rich_100m");
+  if (newBalance >= 1_000_000_000) await unlockAchievement(interaction.user.id, "rich_1b");
 
   const embed = new EmbedBuilder()
     .setColor(0x00cc66)
@@ -65,7 +72,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setDescription(`Bạn đã **${workEntry.job}** và kiếm được tiền!`)
     .addFields(
       { name: "💰 Kiếm được", value: `**+${formatVND(earned)}**`, inline: true },
-      { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true }
+      { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true },
+      { name: "✨ XP", value: "**+20**", inline: true }
     )
     .setFooter({ text: "Quay lại sau 1 giờ để làm tiếp nhé! 💪" })
     .setTimestamp();

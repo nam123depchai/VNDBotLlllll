@@ -14,6 +14,9 @@ export const discordUsersTable = pgTable("discord_users", {
   lastWorkTime: timestamp("last_work_time"),
   lastDailyTime: timestamp("last_daily_time"),
   dailyStreak: integer("daily_streak").notNull().default(0),
+  xp: integer("xp").notNull().default(0),
+  totalXp: integer("total_xp").notNull().default(0),
+  level: integer("level").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -3,11 +3,12 @@ import {
   type ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
+import { getOrCreateUser, updateBalance, addXp } from "../utils/db-helpers.js";
 import { formatVND, parseBetAmount } from "../utils/currency.js";
 import { incrementQuestProgress } from "../utils/quests.js";
 import { db, jackpotTable, discordUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { unlockAchievement } from "./thanhtich.js";
 
 const JACKPOT_CONTRIBUTION_RATE = 0.05;
 const MAX_JACKPOT = 1_000_000_000;
@@ -148,6 +149,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await incrementQuestProgress(interaction.user.id, "gamble");
   if (isWin) await incrementQuestProgress(interaction.user.id, "win");
+  await addXp(interaction.user.id, isWin ? 30 : 10);
+  if (isTrip) await unlockAchievement(interaction.user.id, "jackpot_winner");
+  if (betAmount >= 1_000_000) await unlockAchievement(interaction.user.id, "high_roller");
 
   const diceDisplay = dice.map(getDiceEmoji).join(" ");
   const resultLabel = result === "T" ? "🔴 Tài" : "🔵 Xỉu";

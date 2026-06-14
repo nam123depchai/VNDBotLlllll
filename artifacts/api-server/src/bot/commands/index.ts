@@ -18,6 +18,17 @@ import * as nhiemvuNhan from "./nhiemvu-nhan.js";
 import * as hutixi from "./hutixi.js";
 import * as lamphat from "./lamphat.js";
 import * as chonglamphat from "./chonglamphat.js";
+import * as level from "./level.js";
+import * as thanhtich from "./thanhtich.js";
+import * as sanck from "./sanck.js";
+import * as muack from "./muack.js";
+import * as banck from "./banck.js";
+import * as dautu from "./dautu.js";
+import * as xoso from "./xoso.js";
+import * as cauca from "./cauca.js";
+import * as tuido from "./tuido.js";
+import * as dauboss from "./dauboss.js";
+import * as topboss from "./topboss.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -50,6 +61,17 @@ export const commands: Map<string, Command> = new Map([
   [hutixi.data.name, hutixi as Command],
   [lamphat.data.name, lamphat as Command],
   [chonglamphat.data.name, chonglamphat as Command],
+  [level.data.name, level as Command],
+  [thanhtich.data.name, thanhtich as Command],
+  [sanck.data.name, sanck as Command],
+  [muack.data.name, muack as Command],
+  [banck.data.name, banck as Command],
+  [dautu.data.name, dautu as Command],
+  [xoso.data.name, xoso as Command],
+  [cauca.data.name, cauca as Command],
+  [tuido.data.name, tuido as Command],
+  [dauboss.data.name, dauboss as Command],
+  [topboss.data.name, topboss as Command],
 ]);
 
 export const commandBuilders = [
@@ -76,4 +98,15 @@ export const commandBuilders = [
   hutixi.data.toJSON(),
   lamphat.data.toJSON(),
   chonglamphat.data.toJSON(),
+  level.data.toJSON(),
+  thanhtich.data.toJSON(),
+  sanck.data.toJSON(),
+  muack.data.toJSON(),
+  banck.data.toJSON(),
+  dautu.data.toJSON(),
+  xoso.data.toJSON(),
+  cauca.data.toJSON(),
+  tuido.data.toJSON(),
+  dauboss.data.toJSON(),
+  topboss.data.toJSON(),
 ];

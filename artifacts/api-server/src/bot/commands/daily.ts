@@ -4,11 +4,12 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from "discord.js";
-import { getOrCreateUser } from "../utils/db-helpers.js";
+import { getOrCreateUser, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { db, discordUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { incrementEarnQuest } from "../utils/quests.js";
+import { unlockAchievement } from "./thanhtich.js";
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const BASE_DAILY = 200_000;
@@ -59,6 +60,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .set({ balance: newBalance, lastDailyTime: now, dailyStreak: newStreak, updatedAt: now })
     .where(eq(discordUsersTable.discordId, interaction.user.id));
   await incrementEarnQuest(interaction.user.id, reward);
+  await addXp(interaction.user.id, 15 + newStreak * 5);
+  if (newStreak >= 7) await unlockAchievement(interaction.user.id, "daily_streak_7");
+  if (newStreak >= 30) await unlockAchievement(interaction.user.id, "daily_streak_30");
 
   const streakBar = Array.from({ length: MAX_STREAK }, (_, i) =>
     i < newStreak ? "🟡" : "⬜"
@@ -85,6 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .addFields(
       { name: "💰 Nhận được", value: `**+${formatVND(reward)}**`, inline: true },
       { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true },
+      { name: "✨ XP", value: `**+${15 + newStreak * 5}**`, inline: true },
       {
         name: `🔥 Streak: ${newStreak}/${MAX_STREAK}`,
         value: streakBar,

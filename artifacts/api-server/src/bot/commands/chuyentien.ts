@@ -3,7 +3,7 @@ import {
   type ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
+import { getOrCreateUser, updateBalance, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 
 export const data = new SlashCommandBuilder()
@@ -91,6 +91,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await updateBalance(interaction.user.id, newSenderBalance);
   await updateBalance(receiver.id, newReceiverBalance);
+  await addXp(interaction.user.id, 10);
 
   const embed = new EmbedBuilder()
     .setColor(0x00cc66)

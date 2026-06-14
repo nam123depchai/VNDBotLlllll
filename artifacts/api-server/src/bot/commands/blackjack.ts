@@ -7,7 +7,7 @@ import {
   ButtonStyle,
   type ButtonInteraction,
 } from "discord.js";
-import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
+import { getOrCreateUser, updateBalance, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { activeGames, cleanupOldGames } from "../utils/game-state.js";
 import { incrementQuestProgress } from "../utils/quests.js";
@@ -311,6 +311,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await updateBalance(interaction.user.id, newBalance);
       await incrementQuestProgress(interaction.user.id, "gamble");
       if (isWin) await incrementQuestProgress(interaction.user.id, "win");
+      await addXp(interaction.user.id, isWin ? 40 : 15);
 
       const resultEmbed = new EmbedBuilder()
         .setColor(color).setTitle(title)
