@@ -5,6 +5,8 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   ComponentType,
 } from "discord.js";
 import { db, userFishingGearTable, discordUsersTable } from "@workspace/db";
@@ -12,142 +14,367 @@ import { eq } from "drizzle-orm";
 import { getOrCreateUser } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 
-const SHOP_ITEMS = [
-  { id: "rod_basic", name: "Cần Câu Gỗ", emoji: "🎣", price: 500_000, desc: "Cần câu cơ bản, câu cá bình thường", type: "rod", level: 1 },
-  { id: "rod_pro", name: "Cần Câu Pro", emoji: "🦯", price: 2_000_000, desc: "Cần câu chuyên nghiệp, tăng tỷ lệ cá quý", type: "rod", level: 2 },
-  { id: "rod_legend", name: "Cần Câu Legend", emoji: "⚡", price: 10_000_000, desc: "Cần câu huyền thoại, tăng tỷ lệ cá hiếm", type: "rod", level: 3 },
-  { id: "bait_10", name: "Mồi Câu x10", emoji: "🪱", price: 50_000, desc: "Mồi câu giúp tăng tỷ lệ bắt cá", type: "bait", quantity: 10 },
-  { id: "bait_50", name: "Mồi Câu x50", emoji: "🪱", price: 200_000, desc: "Gói mồi câu tiết kiệm", type: "bait", quantity: 50 },
-  { id: "bait_100", name: "Mồi Câu x100", emoji: "🪱", price: 350_000, desc: "Gói mồi câu số lượng lớn", type: "bait", quantity: 100 },
+// ============================================================
+// SHOP ITEMS
+// ============================================================
+
+type ShopCategory = "rod" | "float" | "bait_basic" | "bait_premium" | "bait_legendary";
+
+type ShopItem = {
+  id: string;
+  name: string;
+  emoji: string;
+  price: number;
+  desc: string;
+  detail: string;
+  category: ShopCategory;
+  rodLevel?: number;
+  floatLevel?: number;
+  baitQty?: number;
+  baitType?: "basic" | "premium" | "legendary";
+};
+
+const SHOP_ITEMS: ShopItem[] = [
+  // ───── Cần câu ─────
+  {
+    id: "rod_1",    name: "Cần Câu Gỗ",     emoji: "🎣", price: 500_000,
+    desc: "Cần câu cơ bản",
+    detail: "Mở khóa cá không phổ biến (Lóc, Trê, Chép...)",
+    category: "rod", rodLevel: 1,
+  },
+  {
+    id: "rod_2",    name: "Cần Câu Pro",     emoji: "🦯", price: 2_000_000,
+    desc: "Cần câu chuyên nghiệp",
+    detail: "Mở khóa cá hiếm (Hồi, Ngừ, Mú, Tôm Hùm...)",
+    category: "rod", rodLevel: 2,
+  },
+  {
+    id: "rod_3",    name: "Cần Câu Legend",  emoji: "⚡", price: 10_000_000,
+    desc: "Cần câu huyền thoại",
+    detail: "Mở khóa cá sử thi + cá giả tưởng (Lửa, Băng, Rồng...)",
+    category: "rod", rodLevel: 3,
+  },
+  {
+    id: "rod_4",    name: "Cần Câu Thần",   emoji: "🌟", price: 50_000_000,
+    desc: "Cần câu siêu thần thánh",
+    detail: "Mở khóa cá MYTHIC: Rồng Cổ Đại, Thần Vương, Vũ Trụ (giá trị lên đến 2 tỷ!)",
+    category: "rod", rodLevel: 4,
+  },
+
+  // ───── Phao câu (cooldown reduction) ─────
+  {
+    id: "float_1",  name: "Phao Câu Đá",    emoji: "🪨", price: 300_000,
+    desc: "Giảm 3 giây hồi chiêu",
+    detail: "20s → 17s mỗi lần câu",
+    category: "float", floatLevel: 1,
+  },
+  {
+    id: "float_2",  name: "Phao Câu Bạc",   emoji: "🥈", price: 1_500_000,
+    desc: "Giảm 8 giây hồi chiêu",
+    detail: "20s → 12s mỗi lần câu",
+    category: "float", floatLevel: 2,
+  },
+  {
+    id: "float_3",  name: "Phao Câu Vàng",  emoji: "🥇", price: 8_000_000,
+    desc: "Giảm 15 giây hồi chiêu",
+    detail: "20s → 5s (TỐI THIỂU) mỗi lần câu!",
+    category: "float", floatLevel: 3,
+  },
+
+  // ───── Mồi Giun (basic) ─────
+  {
+    id: "bait_10",   name: "Mồi Giun x10",  emoji: "🪱", price: 50_000,
+    desc: "Mồi cơ bản",
+    detail: "+150% tỷ lệ cá không phổ biến, -70% rác",
+    category: "bait_basic", baitQty: 10, baitType: "basic",
+  },
+  {
+    id: "bait_50",   name: "Mồi Giun x50",  emoji: "🪱", price: 200_000,
+    desc: "Tiết kiệm hơn mua lẻ",
+    detail: "+150% tỷ lệ cá không phổ biến, -70% rác",
+    category: "bait_basic", baitQty: 50, baitType: "basic",
+  },
+  {
+    id: "bait_100",  name: "Mồi Giun x100", emoji: "🪱", price: 350_000,
+    desc: "Gói siêu lớn",
+    detail: "+150% tỷ lệ cá không phổ biến, -70% rác",
+    category: "bait_basic", baitQty: 100, baitType: "basic",
+  },
+
+  // ───── Mồi Tôm (premium) ─────
+  {
+    id: "pbait_10",  name: "Mồi Tôm x10",   emoji: "🦐", price: 200_000,
+    desc: "Mồi cao cấp",
+    detail: "+150% cá hiếm, +50% cá sử thi, -70% rác",
+    category: "bait_premium", baitQty: 10, baitType: "premium",
+  },
+  {
+    id: "pbait_50",  name: "Mồi Tôm x50",   emoji: "🦐", price: 800_000,
+    desc: "Gói mồi tôm tiết kiệm",
+    detail: "+150% cá hiếm, +50% cá sử thi, -70% rác",
+    category: "bait_premium", baitQty: 50, baitType: "premium",
+  },
+
+  // ───── Mồi Vàng (legendary) ─────
+  {
+    id: "lbait_5",   name: "Mồi Vàng x5",   emoji: "✨", price: 1_000_000,
+    desc: "Mồi huyền thoại",
+    detail: "+200% cá huyền thoại, +200% cá mythic! Hiếm nhất.",
+    category: "bait_legendary", baitQty: 5, baitType: "legendary",
+  },
+  {
+    id: "lbait_20",  name: "Mồi Vàng x20",  emoji: "✨", price: 3_500_000,
+    desc: "Gói Mồi Vàng",
+    detail: "+200% cá huyền thoại, +200% cá mythic! Hiếm nhất.",
+    category: "bait_legendary", baitQty: 20, baitType: "legendary",
+  },
 ];
+
+const CATEGORIES = [
+  { value: "rod",            label: "🎣 Cần Câu",       description: "4 loại cần câu từ gỗ đến thần thánh" },
+  { value: "float",          label: "🎯 Phao Câu",       description: "Giảm thời gian hồi chiêu xuống 5s" },
+  { value: "bait_basic",     label: "🪱 Mồi Giun",       description: "Mồi cơ bản tăng cá không phổ biến" },
+  { value: "bait_premium",   label: "🦐 Mồi Tôm",        description: "Mồi cao cấp tăng cá hiếm+" },
+  { value: "bait_legendary", label: "✨ Mồi Vàng",       description: "Mồi thần tăng cá huyền thoại & mythic" },
+];
+
+// ============================================================
+// BUILD EMBEDS
+// ============================================================
+
+function buildCategoryEmbed(
+  category: string,
+  gear: { rodLevel: number; floatLevel: number; bait: number; premiumBait: number; legendaryBait: number } | null,
+  balance: number,
+): EmbedBuilder {
+  const items = SHOP_ITEMS.filter((i) => i.category === category);
+  const cat = CATEGORIES.find((c) => c.value === category)!;
+
+  let gearStatus = "";
+  if (gear) {
+    gearStatus =
+      `🎣 Cần câu: Level ${gear.rodLevel}  |  🎯 Phao: Level ${gear.floatLevel}\n` +
+      `🪱 Mồi Giun: ${gear.bait}  |  🦐 Mồi Tôm: ${gear.premiumBait}  |  ✨ Mồi Vàng: ${gear.legendaryBait}\n`;
+  }
+
+  let desc = `💰 **Số dư:** ${formatVND(balance)}\n${gearStatus}\n`;
+
+  for (const item of items) {
+    const owned = checkOwned(item, gear);
+    const statusIcon = owned ? "✅" : "🛒";
+    desc += `${item.emoji} **${item.name}** — ${formatVND(item.price)}  ${statusIcon}\n`;
+    desc += `> ${item.desc} — *${item.detail}*\n\n`;
+  }
+
+  return new EmbedBuilder()
+    .setColor(0x0099ff)
+    .setTitle(`🛒 Shop Câu Cá — ${cat.label}`)
+    .setDescription(desc)
+    .setFooter({ text: "Chọn danh mục phía trên · Nhấn nút để mua" });
+}
+
+function checkOwned(item: ShopItem, gear: { rodLevel: number; floatLevel: number } | null): boolean {
+  if (!gear) return false;
+  if (item.rodLevel   !== undefined) return gear.rodLevel   >= item.rodLevel;
+  if (item.floatLevel !== undefined) return gear.floatLevel >= item.floatLevel;
+  return false; // consumables always buyable
+}
+
+function buildBuyButtons(category: string, gear: { rodLevel: number; floatLevel: number } | null) {
+  const items = SHOP_ITEMS.filter((i) => i.category === category);
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  let row = new ActionRowBuilder<ButtonBuilder>();
+
+  for (const item of items) {
+    const owned = checkOwned(item, gear);
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`buy_${item.id}`)
+        .setLabel(item.name)
+        .setStyle(owned ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setEmoji(item.emoji)
+        .setDisabled(owned && item.baitType === undefined), // disable if rod/float already owned
+    );
+    if (row.components.length === 3) {
+      rows.push(row);
+      row = new ActionRowBuilder<ButtonBuilder>();
+    }
+  }
+  if (row.components.length > 0) rows.push(row);
+  return rows;
+}
+
+// ============================================================
+// COMMAND
+// ============================================================
 
 export const data = new SlashCommandBuilder()
   .setName("shopcauca")
-  .setDescription("Cửa hàng câu cá — mua cần, mồi, phụ kiện");
+  .setDescription("🛒 Cửa hàng câu cá — cần, phao, mồi đa dạng");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
+  const userId = interaction.user.id;
+  const user = await getOrCreateUser(userId, interaction.user.username);
 
-  const gear = await db
-    .select()
-    .from(userFishingGearTable)
-    .where(eq(userFishingGearTable.discordId, interaction.user.id))
-    .limit(1);
+  const gearRows = await db.select().from(userFishingGearTable)
+    .where(eq(userFishingGearTable.discordId, userId)).limit(1);
+  const gear = gearRows[0] ?? null;
 
-  const currentRod = gear[0]?.rodLevel ?? 0;
-  const currentBait = gear[0]?.bait ?? 0;
+  let currentCategory = "rod";
 
-  let description = `💰 Số dư: ${formatVND(user.balance)}\n🪱 Mồi hiện có: ${currentBait}\n\n`;
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId("shop_category")
+    .setPlaceholder("📂 Chọn danh mục...")
+    .addOptions(
+      CATEGORIES.map((c) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(c.label)
+          .setDescription(c.description)
+          .setValue(c.value)
+          .setDefault(c.value === currentCategory)
+      )
+    );
 
-  for (const item of SHOP_ITEMS) {
-    const canBuy = item.type === "rod" ? currentRod < item.level : true;
-    const status = canBuy ? "✅" : "❌ Đã có";
-    description += `${item.emoji} **${item.name}** — ${formatVND(item.price)} ${status}\n${item.desc}\n\n`;
-  }
+  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
-  const embed = new EmbedBuilder()
-    .setColor(0x0099ff)
-    .setTitle("🎣 Shop Câu Cá")
-    .setDescription(description)
-    .setFooter({ text: "Nhấn nút để mua!" });
+  const embed = buildCategoryEmbed(currentCategory, gear ? {
+    rodLevel: gear.rodLevel, floatLevel: gear.floatLevel,
+    bait: gear.bait, premiumBait: gear.premiumBait, legendaryBait: gear.legendaryBait,
+  } : null, user.balance);
 
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  for (let i = 0; i < SHOP_ITEMS.length; i += 3) {
-    const row = new ActionRowBuilder<ButtonBuilder>();
-    for (let j = i; j < Math.min(i + 3, SHOP_ITEMS.length); j++) {
-      const item = SHOP_ITEMS[j]!;
-      const canBuy = item.type === "rod" ? currentRod < item.level : true;
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`buy_${item.id}`)
-          .setLabel(`${item.name}`)
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji(item.emoji)
-          .setDisabled(!canBuy)
-      );
-    }
-    rows.push(row);
-  }
+  const buyRows = buildBuyButtons(currentCategory, gear ? { rodLevel: gear.rodLevel, floatLevel: gear.floatLevel } : null);
 
-  rows.push(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId("shop_cancel").setLabel("Đóng").setStyle(ButtonStyle.Secondary)
-    )
-  );
-
-  const reply = await interaction.reply({ embeds: [embed], components: rows, ephemeral: true });
-
-  const collector = reply.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 60_000,
+  const reply = await interaction.reply({
+    embeds: [embed],
+    components: [selectRow, ...buyRows],
+    ephemeral: true,
   });
 
+  const collector = reply.createMessageComponentCollector({ time: 120_000 });
+
   collector.on("collect", async (i) => {
-    if (i.user.id !== interaction.user.id) {
+    if (i.user.id !== userId) {
       await i.reply({ content: "Không phải của bạn!", ephemeral: true });
       return;
     }
 
-    if (i.customId === "shop_cancel") {
-      await i.update({ content: "Đã đóng shop.", embeds: [], components: [] });
+    // ── Category switch ──
+    if (i.componentType === ComponentType.StringSelect && i.customId === "shop_category") {
+      currentCategory = i.values[0]!;
+      const latestGear = (await db.select().from(userFishingGearTable).where(eq(userFishingGearTable.discordId, userId)).limit(1))[0] ?? null;
+      const latestUser = await getOrCreateUser(userId, interaction.user.username);
+
+      const updatedSelect = new StringSelectMenuBuilder()
+        .setCustomId("shop_category")
+        .setPlaceholder("📂 Chọn danh mục...")
+        .addOptions(
+          CATEGORIES.map((c) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(c.label).setDescription(c.description).setValue(c.value).setDefault(c.value === currentCategory)
+          )
+        );
+
+      await i.update({
+        embeds: [buildCategoryEmbed(currentCategory, latestGear ? {
+          rodLevel: latestGear.rodLevel, floatLevel: latestGear.floatLevel,
+          bait: latestGear.bait, premiumBait: latestGear.premiumBait, legendaryBait: latestGear.legendaryBait,
+        } : null, latestUser.balance)],
+        components: [
+          new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(updatedSelect),
+          ...buildBuyButtons(currentCategory, latestGear ? { rodLevel: latestGear.rodLevel, floatLevel: latestGear.floatLevel } : null),
+        ],
+      });
       return;
     }
 
-    const itemId = i.customId.replace("buy_", "");
-    const item = SHOP_ITEMS.find((s) => s.id === itemId);
-    if (!item) return;
+    // ── Buy button ──
+    if (i.componentType === ComponentType.Button && i.customId.startsWith("buy_")) {
+      const itemId = i.customId.replace("buy_", "");
+      const item = SHOP_ITEMS.find((s) => s.id === itemId);
+      if (!item) return;
 
-    const updated = await getOrCreateUser(interaction.user.id, interaction.user.username);
-    if (updated.balance < item.price) {
-      await i.reply({ content: `❌ Không đủ tiền! Cần ${formatVND(item.price)}.`, ephemeral: true });
-      return;
-    }
-
-    // Deduct
-    await db
-      .update(discordUsersTable)
-      .set({ balance: updated.balance - item.price, updatedAt: new Date() })
-      .where(eq(discordUsersTable.discordId, interaction.user.id));
-
-    // Update gear
-    const existingGear = await db
-      .select()
-      .from(userFishingGearTable)
-      .where(eq(userFishingGearTable.discordId, interaction.user.id))
-      .limit(1);
-
-    if (item.type === "rod") {
-      if (existingGear.length === 0) {
-        await db.insert(userFishingGearTable).values({
-          discordId: interaction.user.id,
-          hasRod: true,
-          rodLevel: item.level,
-        });
-      } else {
-        await db
-          .update(userFishingGearTable)
-          .set({ hasRod: true, rodLevel: item.level, updatedAt: new Date() })
-          .where(eq(userFishingGearTable.id, existingGear[0]!.id));
+      const latestUser = await getOrCreateUser(userId, interaction.user.username);
+      if (latestUser.balance < item.price) {
+        await i.reply({ content: `❌ Không đủ tiền! Cần **${formatVND(item.price)}**, bạn có **${formatVND(latestUser.balance)}**`, ephemeral: true });
+        return;
       }
-    } else if (item.type === "bait") {
-      const newBait = (existingGear[0]?.bait ?? 0) + item.quantity;
-      if (existingGear.length === 0) {
-        await db.insert(userFishingGearTable).values({
-          discordId: interaction.user.id,
-          hasRod: false,
-          bait: newBait,
-        });
-      } else {
-        await db
-          .update(userFishingGearTable)
-          .set({ bait: newBait, updatedAt: new Date() })
-          .where(eq(userFishingGearTable.id, existingGear[0]!.id));
-      }
-    }
 
-    await i.reply({
-      content: `✅ Đã mua **${item.name}**! Còn ${formatVND(updated.balance - item.price)}`,
-      ephemeral: true,
-    });
+      // Deduct balance
+      await db.update(discordUsersTable)
+        .set({ balance: latestUser.balance - item.price, updatedAt: new Date() })
+        .where(eq(discordUsersTable.discordId, userId));
+
+      // Update gear
+      const existingGear = await db.select().from(userFishingGearTable).where(eq(userFishingGearTable.discordId, userId)).limit(1);
+
+      if (item.rodLevel !== undefined) {
+        // Rod upgrade
+        if (existingGear.length === 0) {
+          await db.insert(userFishingGearTable).values({ discordId: userId, hasRod: true, rodLevel: item.rodLevel });
+        } else {
+          await db.update(userFishingGearTable)
+            .set({ hasRod: true, rodLevel: item.rodLevel, updatedAt: new Date() })
+            .where(eq(userFishingGearTable.id, existingGear[0]!.id));
+        }
+        await i.reply({ content: `✅ Đã mua **${item.name}**! Giờ có thể câu ${item.detail}`, ephemeral: true });
+
+      } else if (item.floatLevel !== undefined) {
+        // Float upgrade
+        if (existingGear.length === 0) {
+          await db.insert(userFishingGearTable).values({ discordId: userId, hasRod: false, floatLevel: item.floatLevel });
+        } else {
+          await db.update(userFishingGearTable)
+            .set({ floatLevel: item.floatLevel, updatedAt: new Date() })
+            .where(eq(userFishingGearTable.id, existingGear[0]!.id));
+        }
+        await i.reply({ content: `✅ Đã trang bị **${item.name}**! ${item.detail}`, ephemeral: true });
+
+      } else if (item.baitType && item.baitQty) {
+        // Bait purchase
+        const cur = existingGear[0];
+        const newBasic     = (cur?.bait ?? 0)          + (item.baitType === "basic"     ? item.baitQty : 0);
+        const newPremium   = (cur?.premiumBait ?? 0)   + (item.baitType === "premium"   ? item.baitQty : 0);
+        const newLegendary = (cur?.legendaryBait ?? 0) + (item.baitType === "legendary" ? item.baitQty : 0);
+
+        if (!cur) {
+          await db.insert(userFishingGearTable).values({
+            discordId: userId, hasRod: false, bait: newBasic, premiumBait: newPremium, legendaryBait: newLegendary,
+          });
+        } else {
+          await db.update(userFishingGearTable)
+            .set({ bait: newBasic, premiumBait: newPremium, legendaryBait: newLegendary, updatedAt: new Date() })
+            .where(eq(userFishingGearTable.id, cur.id));
+        }
+        await i.reply({
+          content: `✅ Đã mua **${item.name}**! Tổng ${item.baitType === "basic" ? `🪱 ${newBasic}` : item.baitType === "premium" ? `🦐 ${newPremium}` : `✨ ${newLegendary}`} mồi`,
+          ephemeral: true,
+        });
+      }
+
+      // Refresh embed
+      const refreshedGear = (await db.select().from(userFishingGearTable).where(eq(userFishingGearTable.discordId, userId)).limit(1))[0] ?? null;
+      const refreshedUser = await getOrCreateUser(userId, interaction.user.username);
+      const updatedSelect2 = new StringSelectMenuBuilder()
+        .setCustomId("shop_category").setPlaceholder("📂 Chọn danh mục...")
+        .addOptions(CATEGORIES.map((c) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(c.label).setDescription(c.description).setValue(c.value).setDefault(c.value === currentCategory)
+        ));
+
+      await interaction.editReply({
+        embeds: [buildCategoryEmbed(currentCategory, refreshedGear ? {
+          rodLevel: refreshedGear.rodLevel, floatLevel: refreshedGear.floatLevel,
+          bait: refreshedGear.bait, premiumBait: refreshedGear.premiumBait, legendaryBait: refreshedGear.legendaryBait,
+        } : null, refreshedUser.balance)],
+        components: [
+          new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(updatedSelect2),
+          ...buildBuyButtons(currentCategory, refreshedGear ? { rodLevel: refreshedGear.rodLevel, floatLevel: refreshedGear.floatLevel } : null),
+        ],
+      });
+    }
+  });
+
+  collector.on("end", () => {
+    interaction.editReply({ components: [] }).catch(() => {});
   });
 }
