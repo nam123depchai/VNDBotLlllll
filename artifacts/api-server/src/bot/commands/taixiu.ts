@@ -10,7 +10,7 @@ import { db, jackpotTable, discordUsersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { unlockAchievement } from "./thanhtich.js";
 
-const JACKPOT_CONTRIBUTION_RATE = 0.05;
+const JACKPOT_CONTRIBUTION_RATE = 0.50;
 const MAX_JACKPOT = 1_000_000_000;
 
 function rollDice(): number[] {
