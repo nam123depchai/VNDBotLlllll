@@ -12,6 +12,10 @@ import { eq } from "drizzle-orm";
 import { getOrCreateUser } from "../utils/db-helpers";
 import { formatVND } from "../utils/currency";
 
+// Cấu hình Hệ thống Thuế
+const TAX_BOT_ID = "1504802232632082502";
+const TAX_RATE = 0.10; // 10% thuế
+
 export const data = new SlashCommandBuilder()
   .setName("banca")
   .setDescription("Bán cá trong túi đồ để kiếm tiền");
@@ -36,7 +40,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const embed = new EmbedBuilder()
       .setColor(0xffaa00)
       .setTitle("🐟 Bán Cá")
-      .setDescription("Chọn cá để bán hoặc bán tất cả.");
+      .setDescription("Chọn cá để bán hoặc bán tất cả (Lưu ý: Thuế bán cá là 10%).");
 
     const rows: ActionRowBuilder<ButtonBuilder>[] = [];
     let row = new ActionRowBuilder<ButtonBuilder>();
@@ -110,18 +114,34 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
         if (i.customId === "sell_all_fish") {
           // Sell all
-          let earned = 0;
+          let totalEarned = 0;
           for (const f of fish) {
-            earned += f.value * f.quantity;
+            totalEarned += f.value * f.quantity;
           }
+
+          // Tính toán phân bổ thuế
+          const taxAmount = Math.floor(totalEarned * TAX_RATE);
+          const earned = totalEarned - taxAmount;
+
           await db.delete(fishInventoryTable).where(eq(fishInventoryTable.discordId, userId));
+          
+          // 1. Trả tiền sau thuế cho người chơi
           await db
             .update(discordUsersTable)
             .set({ balance: user.balance + earned, updatedAt: new Date() })
             .where(eq(discordUsersTable.discordId, userId));
 
+          // 2. Chuyển 10% tiền thuế thu được vào tài khoản Bot
+          if (taxAmount > 0) {
+            const botUser = await getOrCreateUser(TAX_BOT_ID, "Bot Thuế");
+            await db
+              .update(discordUsersTable)
+              .set({ balance: botUser.balance + taxAmount, updatedAt: new Date() })
+              .where(eq(discordUsersTable.discordId, TAX_BOT_ID));
+          }
+
           await i.update({
-            content: `💰 Đã bán tất cả cá! +${formatVND(earned)}`,
+            content: `💰 Đã bán tất cả cá! +${formatVND(earned)} *(Đã khấu trừ 10% thuế: ${formatVND(taxAmount)} vào ngân khố)*`,
             embeds: [],
             components: [],
           });
@@ -149,15 +169,30 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           return;
         }
 
-        const earned = target.value * target.quantity;
+        // Tính toán phân bổ thuế cho bán cá lẻ
+        const totalEarned = target.value * target.quantity;
+        const taxAmount = Math.floor(totalEarned * TAX_RATE);
+        const earned = totalEarned - taxAmount;
+
         await db.delete(fishInventoryTable).where(eq(fishInventoryTable.id, fishId));
+        
+        // 1. Trả tiền sau thuế cho người chơi
         await db
           .update(discordUsersTable)
           .set({ balance: user.balance + earned, updatedAt: new Date() })
           .where(eq(discordUsersTable.discordId, userId));
 
+        // 2. Chuyển tiền thuế cho Bot
+        if (taxAmount > 0) {
+          const botUser = await getOrCreateUser(TAX_BOT_ID, "Bot Thuế");
+          await db
+            .update(discordUsersTable)
+            .set({ balance: botUser.balance + taxAmount, updatedAt: new Date() })
+            .where(eq(discordUsersTable.discordId, TAX_BOT_ID));
+        }
+
         await i.update({
-          content: `💰 Đã bán ${target.emoji} **${target.fishName}** x${target.quantity}! +${formatVND(earned)}`,
+          content: `💰 Đã bán ${target.emoji} **${target.fishName}** x${target.quantity}! +${formatVND(earned)} *(Đã trừ 10% thuế: ${formatVND(taxAmount)})*`,
           embeds: [],
           components: [],
         });
