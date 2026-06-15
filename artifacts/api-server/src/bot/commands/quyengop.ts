@@ -5,12 +5,10 @@ import {
 } from "discord.js";
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND, parseBetAmount } from "../utils/currency.js";
-import { db, discordUsersTable } from "@workspace/db"; // 💡 Nhớ import thêm table chứa Quỹ từ thiện của bạn ở đây
-import { eq, sql } from "drizzle-orm";
 
 export const data = new SlashCommandBuilder()
   .setName("quyengop")
-  .setDescription("Quyên góp tiền vào Quỹ Từ Thiện Thành Phố để phát chẩn tế")
+  .setDescription("Quyên góp tiền vào Quỹ Từ Thiện để nuôi béo Bird Bot")
   .addStringOption((option) =>
     option
       .setName("sotien")
@@ -21,7 +19,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const amountInput = interaction.options.getString("sotien", true);
 
-  // Defer reply để tránh bot bị quá hạn 3s của Discord
+  // Defer reply để tránh bot bị quá hạn 3s phản hồi của Discord
   await interaction.deferReply();
 
   const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
@@ -59,7 +57,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  // Quy định số tiền quyên góp tối thiểu (Ví dụ: 1.000₫ để tránh spam 1đ)
+  // Quy định số tiền quyên góp tối thiểu (Tránh spam 1đ, 2đ làm rác bot)
   if (donateAmount < 1_000) {
     const embed = new EmbedBuilder()
       .setColor(0xff4444)
@@ -72,20 +70,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const newBalance = user.balance - donateAmount;
 
   try {
-    // 1. Trừ tiền người quyên góp
+    // 1. Khấu trừ tiền của người quyên góp
     await updateBalance(interaction.user.id, newBalance);
 
-    // 2. Cộng tiền vào Quỹ Từ Thiện trong Database
-    // ⚠️ BẠN CẦN THAY ĐOẠN ĐƯỜNG DẪN TABLE DƯỚI ĐÂY CHO ĐÚNG VỚI CẤU TRÚC DB CỦA BẠN NHA:
-    // Ví dụ nếu bạn lưu quỹ từ thiện ở bảng `charityTable` với row id = 1:
-    /*
-    await db
-      .update(charityTable)
-      .set({ amount: sql`${charityTable.amount} + ${donateAmount}` })
-      .where(eq(charityTable.id, 1));
-    */
+    // 🌟 2. LẤY TÀI KHOẢN BOT & CỘNG TIỀN VÀO VÍ CỦA BOT
+    const botId = interaction.client.user.id;         // Lấy Discord ID của con bot
+    const botName = interaction.client.user.username; // Lấy tên của bot (Bird Bot)
+    
+    // Lấy hoặc khởi tạo tài khoản của Bot trong Database
+    const botUser = await getOrCreateUser(botId, botName);
+    
+    // Tiến hành cộng dồn số tiền quyên góp vào ví tiền của Bot
+    await updateBalance(botId, botUser.balance + donateAmount);
 
-    // Tạo Embed bằng khen Tấm Lòng Vàng
+    // 3. Xuất Embed bằng khen "Tấm Lòng Vàng"
     const embed = new EmbedBuilder()
       .setColor(0x00ffcc)
       .setTitle("📜 BẰNG KHEN TẤM LÒNG VÀNG 📜")
@@ -109,4 +107,3 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 }
-
