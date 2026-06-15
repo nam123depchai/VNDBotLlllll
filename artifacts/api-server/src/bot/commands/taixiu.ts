@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { unlockAchievement } from "./thanhtich.js";
 
 const JACKPOT_CONTRIBUTION_RATE = 0.50;
-const MAX_JACKPOT = 1_000_000_000;
+const MAX_JACKPOT = 2_000_000_000;
 
 // Cấu hình Hệ thống Thuế
 const TAX_BOT_ID = "1504802232632082502";
