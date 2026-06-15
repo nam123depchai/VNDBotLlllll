@@ -13,6 +13,10 @@ import { unlockAchievement } from "./thanhtich.js";
 const JACKPOT_CONTRIBUTION_RATE = 0.50;
 const MAX_JACKPOT = 1_000_000_000;
 
+// Cấu hình Hệ thống Thuế
+const TAX_BOT_ID = "1504802232632082502";
+const TAX_RATE = 0.10; // 10% thuế
+
 function rollDice(): number[] {
   return [
     Math.floor(Math.random() * 6) + 1,
@@ -137,15 +141,35 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // Tích vào nổ hũ
   const jackpotAmount = await addToJackpot(betAmount);
 
-  // Nổ hũ! 3 xúc xắc giống nhau
+  // Khởi tạo các biến tính toán thuế nổ hũ
   let jackpotWin = 0;
+  let taxAmount = 0;
+  let playerWin = 0;
+
+  // Nổ hũ! 3 xúc xắc giống nhau
   if (isTrip) {
     jackpotWin = await hitJackpot(interaction.user.id);
-    newBalance += jackpotWin;
+    
+    // Tính toán cắt phế thuế 10%
+    taxAmount = Math.floor(jackpotWin * TAX_RATE);
+    playerWin = jackpotWin - taxAmount;
+    
+    newBalance += playerWin;
+
+    // 1. Cập nhật số dư sau nổ hũ cho người chơi
     await db
       .update(discordUsersTable)
       .set({ balance: newBalance, updatedAt: new Date() })
       .where(eq(discordUsersTable.discordId, interaction.user.id));
+
+    // 2. Chuyển tiền thuế 10% cho Bot thu thuế
+    if (taxAmount > 0) {
+      const botUser = await getOrCreateUser(TAX_BOT_ID, "Bot Thuế");
+      await db
+        .update(discordUsersTable)
+        .set({ balance: botUser.balance + taxAmount, updatedAt: new Date() })
+        .where(eq(discordUsersTable.discordId, TAX_BOT_ID));
+    }
   } else {
     await updateBalance(interaction.user.id, Math.max(0, newBalance));
   }
@@ -165,7 +189,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setTitle(isTrip ? "🎉🎉🎉 NỔ HŨ TÀI XỈU! 🎉🎉🎉" : isWin ? "🎉 BẠN THẮNG!" : "😢 BẠN THUA!")
     .setDescription(
       isTrip
-        ? `🎰 **3 xúc xắc giống nhau!** ${diceDisplay}\n🎉 **${dice[0]}-${dice[0]}-${dice[0]}** 🎉\n\n💰 Bạn đã **NỔ HŨ** và ăn **${formatVND(jackpotWin)}**!`
+        ? `🎰 **3 xúc xắc giống nhau!** ${diceDisplay}\n🎉 **${dice[0]}-${dice[0]}-${dice[0]}** 🎉\n\n💰 Bạn đã **NỔ HŨ** và thực nhận **${formatVND(playerWin)}**!\n*(Đã trừ 10% thuế nổ hũ: ${formatVND(taxAmount)})*`
         : `🎲 Xúc xắc: ${diceDisplay} = **${total}**`
     )
     .addFields(
@@ -181,7 +205,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   if (isTrip) {
     embed.addFields(
-      { name: "🏆 Tiền nổ hũ", value: `**+${formatVND(jackpotWin)}**`, inline: true },
+      { name: "🏆 Tiền nổ hũ", value: `**+${formatVND(playerWin)}**`, inline: true },
       { name: "🏦 Số dư mới", value: `**${formatVND(newBalance)}**`, inline: true }
     );
   } else {
