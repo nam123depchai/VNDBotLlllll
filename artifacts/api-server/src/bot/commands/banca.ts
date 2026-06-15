@@ -42,27 +42,42 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     let row = new ActionRowBuilder<ButtonBuilder>();
     let totalValue = 0;
 
+    // Discord giới hạn 5 rows, dành 1 row cho "bán tất cả" → tối đa 4 rows fish = 12 loại
+    const MAX_FISH_ROWS = 4;
+    const MAX_FISH_BUTTONS = MAX_FISH_ROWS * 3; // 12 loại
+    let buttonCount = 0;
+    let hiddenCount = 0;
+
     for (const f of fish) {
       totalValue += f.value * f.quantity;
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`sell_all_${f.id}`)
-          .setLabel(`${f.fishName} x${f.quantity}`)
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji(f.emoji?.match(/\p{Emoji}/u) ? f.emoji : "🐟")
-      );
-      if (row.components.length === 3) {
-        rows.push(row);
-        row = new ActionRowBuilder<ButtonBuilder>();
+      if (buttonCount < MAX_FISH_BUTTONS) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`sell_all_${f.id}`)
+            .setLabel(`${f.fishName} x${f.quantity}`)
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji(f.emoji?.match(/\p{Emoji}/u) ? f.emoji : "🐟")
+        );
+        buttonCount++;
+        if (row.components.length === 3) {
+          rows.push(row);
+          row = new ActionRowBuilder<ButtonBuilder>();
+        }
+      } else {
+        hiddenCount++;
       }
     }
     if (row.components.length > 0) rows.push(row);
+
+    const sellAllLabel = hiddenCount > 0
+      ? `Bán tất cả +${hiddenCount} loại khác (${formatVND(totalValue)})`
+      : `Bán tất cả (${formatVND(totalValue)})`;
 
     rows.push(
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId("sell_all_fish")
-          .setLabel(`Bán tất cả (${formatVND(totalValue)})`)
+          .setLabel(sellAllLabel.slice(0, 80)) // Discord label max 80 chars
           .setStyle(ButtonStyle.Danger)
           .setEmoji("💰")
       )
