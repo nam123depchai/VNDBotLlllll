@@ -1,4 +1,4 @@
-hereimport {
+import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   EmbedBuilder,
