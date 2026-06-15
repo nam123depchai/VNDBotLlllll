@@ -8,11 +8,15 @@ import {
   ButtonStyle,
   ComponentType,
 } from "discord.js";
-import { db, fishInventoryTable, userFishingGearTable } from "@workspace/db";
+import { db, fishInventoryTable, userFishingGearTable, discordUsersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { getOrCreateUser, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 import { unlockAchievement } from "./thanhtich.js";
+
+// Cấu hình Hệ thống Thuế khi bán cá (Theo file banca.ts của bạn là 10%)
+const TAX_BOT_ID = "1504802232632082502";
+const TAX_RATE = 0.10;
 
 // ═══════════════════════════════════════════════════════════
 // FISH DATABASE
@@ -81,14 +85,11 @@ const FISH_DB: Record<FishRarity, FishEntry[]> = {
 };
 
 // ═══════════════════════════════════════════════════════════
-// COOLDOWN — dùng schema cooldownLevel (0=20s 1=15s 2=10s 3=5s)
+// COOLDOWN
 // ═══════════════════════════════════════════════════════════
 const COOLDOWNS = [20_000, 15_000, 10_000, 5_000];
 function getCooldownMs(level: number) { return COOLDOWNS[level] ?? 20_000; }
 
-// ═══════════════════════════════════════════════════════════
-// BAIT — map sang schema thực tế (bait / baitGold / baitDivine)
-// ═══════════════════════════════════════════════════════════
 type BaitType = "none" | "basic" | "premium" | "legendary";
 type BaitPref = "auto" | "none" | "basic" | "premium" | "legendary";
 
@@ -96,9 +97,6 @@ const BAIT_LABEL: Record<BaitType, string> = {
   none: "", basic: "🪱 Mồi Giun", premium: "🦐 Mồi Tôm", legendary: "✨ Mồi Vàng",
 };
 
-// ═══════════════════════════════════════════════════════════
-// COLORS & LABELS
-// ═══════════════════════════════════════════════════════════
 const RARITY_COLOR: Record<FishRarity, number> = {
   trash:0x666666, common:0x99aabb, uncommon:0x00cc55, rare:0x0099ff,
   epic:0xaa00ff, legendary:0xffaa00, mythic:0xff2266,
@@ -109,18 +107,15 @@ const RARITY_LABEL: Record<FishRarity, string> = {
 };
 
 // ═══════════════════════════════════════════════════════════
-// MODULE-LEVEL STATE
+// STATE
 // ═══════════════════════════════════════════════════════════
-const fishingCooldowns = new Map<string, number>();  // userId → last fish timestamp
+const fishingCooldowns = new Map<string, number>();
 const activeCollectors = new Map<string, { stop: (r?: string) => void }>();
 const isFishing        = new Set<string>();
-const baitPrefs        = new Map<string, BaitPref>(); // userId → pref
+const baitPrefs        = new Map<string, BaitPref>();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ═══════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════
 type GearRow = typeof userFishingGearTable.$inferSelect;
 
 function resolveBaitType(g: GearRow, pref: BaitPref): BaitType {
@@ -129,7 +124,6 @@ function resolveBaitType(g: GearRow, pref: BaitPref): BaitType {
   if (pref === "premium"   && g.baitGold   > 0) return "premium";
   if (pref === "basic"     && g.bait       > 0) return "basic";
   if (pref !== "auto")     return "none";
-  // auto: ưu tiên tốt nhất có sẵn
   if (g.baitDivine > 0) return "legendary";
   if (g.baitGold   > 0) return "premium";
   if (g.bait       > 0) return "basic";
@@ -172,7 +166,6 @@ function rollFish(rodLevel: number, baitType: BaitType, luckLevel: number) {
 }
 
 async function addToInventory(userId: string, fish: FishEntry, rarity: FishRarity) {
-  // Fix: dùng and() thay vì .where().where() chained
   const existing = await db.select().from(fishInventoryTable)
     .where(and(eq(fishInventoryTable.discordId, userId), eq(fishInventoryTable.fishName, fish.name)))
     .limit(1);
@@ -189,10 +182,10 @@ async function addToInventory(userId: string, fish: FishEntry, rarity: FishRarit
 }
 
 // ═══════════════════════════════════════════════════════════
-// CORE FISHING — trả về embed hoặc lỗi
+// CORE FISHING
 // ═══════════════════════════════════════════════════════════
 type FishResult =
-  | { ok: true; embed: EmbedBuilder; cooldownMs: number }
+  | { ok: true; embed: EmbedBuilder; cooldownMs: number; fishValue: number; fishName: string; isTrash: boolean }
   | { ok: false; reason: "NO_ROD" | "COOLDOWN"; remainingMs?: number };
 
 async function doFishing(userId: string, username: string): Promise<FishResult> {
@@ -211,13 +204,11 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
   if (Date.now() - last < cooldownMs)
     return { ok: false, reason: "COOLDOWN", remainingMs: cooldownMs - (Date.now() - last) };
 
-  // Ghi timestamp ngay để tránh race condition
   fishingCooldowns.set(userId, Date.now());
 
   const pref     = baitPrefs.get(userId) ?? "auto";
   const baitType = resolveBaitType(g, pref);
 
-  // Trừ mồi
   const upd: Partial<GearRow> = { updatedAt: new Date() };
   if (baitType === "legendary") upd.baitDivine = g.baitDivine - 1;
   else if (baitType === "premium") upd.baitGold = g.baitGold - 1;
@@ -228,6 +219,9 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
   const result = rollFish(g.rodLevel, baitType, g.luckLevel);
   const caught = result.fish;
   const isTrash = result.rarity === "trash";
+
+  let totalValue = caught.value;
+  let summaryName = caught.name;
 
   let newTotal = g.totalFishCaught;
   if (!isTrash) {
@@ -241,13 +235,15 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
     if (newTotal >= 200) await unlockAchievement(userId, "fishing_master").catch(() => {});
   }
 
-  // Lưới: 25% bắt 2 cá (nếu hasNet)
+  // Lưới bắt thêm cá
   let extra: typeof result | null = null;
   if (!isTrash && g.hasNet && Math.random() < 0.25) {
     extra = rollFish(g.rodLevel, baitType, g.luckLevel);
     if (extra.rarity !== "trash") {
       await addToInventory(userId, extra.fish, extra.rarity);
       newTotal++;
+      totalValue += extra.fish.value; 
+      summaryName += ` + ${extra.fish.name}`; // Gộp tên lại để truyền vào customId nút bấm
       await db.update(userFishingGearTable)
         .set({ totalFishCaught: newTotal, updatedAt: new Date() })
         .where(eq(userFishingGearTable.id, g.id));
@@ -255,10 +251,12 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
     } else { extra = null; }
   }
 
-  const cdSec = cooldownMs / 1000;
   const baitLeft = baitType === "legendary" ? g.baitDivine - 1
     : baitType === "premium" ? g.baitGold - 1
     : baitType === "basic"   ? g.bait - 1 : 0;
+
+  // 🌟 ĐẾM GIÂY REALTIME: Tính toán Timestamp chuẩn của Discord
+  const readyAtSeconds = Math.floor((Date.now() + cooldownMs) / 1000);
 
   let embed: EmbedBuilder;
   if (isTrash) {
@@ -268,9 +266,8 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
       .setDescription(
         `Bạn câu được... **${caught.name}** 😂\nKhông sao, lần sau cố lên!\n\n` +
         (baitType !== "none" ? `> ${BAIT_LABEL[baitType]} đã dùng (còn ${Math.max(0,baitLeft)})\n` : "") +
-        `💡 Mua mồi ở **/shopcauca** để giảm rác!`
-      )
-      .setFooter({ text: `⏱️ Hồi: ${cdSec}s` });
+        `💡 Mua mồi ở **/shopcauca** để giảm rác!\n\n⏳ **Hồi chiêu:** Sẵn sàng <t:${readyAtSeconds}:R>`
+      );
   } else {
     const typeTag = caught.type === "fantasy" ? "🌌 Giả Tưởng" : "🌊 Thật";
     let desc =
@@ -281,6 +278,9 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
     if (extra) {
       desc += `\n\n🕸️ **Lưới bắt thêm:** ${extra.fish.emoji} ${extra.fish.name} [${RARITY_LABEL[extra.rarity]}]\n💰 ${formatVND(extra.fish.value)}`;
     }
+    
+    desc += `\n\n⏳ **Hồi chiêu:** Sẵn sàng <t:${readyAtSeconds}:R>`;
+
     embed = new EmbedBuilder()
       .setColor(RARITY_COLOR[result.rarity])
       .setTitle(`${caught.emoji}  ${caught.name}`)
@@ -288,22 +288,34 @@ async function doFishing(userId: string, username: string): Promise<FishResult> 
       .addFields(
         { name:"Cần câu",   value:`Level ${g.rodLevel}`, inline:true },
         { name:"Tổng cá",   value:`${newTotal}`,          inline:true },
-        { name:"Hồi chiêu", value:`${cdSec}s`,            inline:true },
-      )
-      .setFooter({ text:"📦 /banca để bán cá" });
+      );
   }
 
-  return { ok: true, embed, cooldownMs };
+  return { ok: true, embed, cooldownMs, fishValue: totalValue, fishName: summaryName, isTrash };
 }
 
 // ═══════════════════════════════════════════════════════════
 // UI BUILDERS
 // ═══════════════════════════════════════════════════════════
-function buildMainRow(cdSec: number) {
+// 🌟 NÂNG CẤP NÚT BẤM: Đính giá trị cá và Tên cá trực tiếp vào Id của Nút Bán cá để xử lý gọn nhẹ
+function buildMainRow(fishValue: number, fishName: string, isTrash: boolean) {
+  const btnRecatch = new ButtonBuilder()
+    .setCustomId("fish_again")
+    .setLabel("🎣 Câu tiếp")
+    .setStyle(ButtonStyle.Success)
+    .setDisabled(true); // Mặc định khóa nút câu lại cho đến khi hết cooldown thực tế
+
+  const btnSell = new ButtonBuilder()
+    .setCustomId(`fish_sell_${fishValue}_${fishName}`)
+    .setLabel(isTrash ? "🗑️ Huỷ rác" : `💰 Bán ngay (+${formatVND(Math.floor(fishValue * (1 - TAX_RATE)))})`)
+    .setStyle(ButtonStyle.Primary)
+    .setDisabled(isTrash || fishValue <= 0); // Nếu là rác hoặc giá trị = 0 thì khóa nút bán luôn
+
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("fish_again").setLabel(`🎣 Câu lại (${cdSec}s)`).setStyle(ButtonStyle.Success),
+    btnRecatch,
     new ButtonBuilder().setCustomId("fish_bait").setLabel("🪱 Đổi mồi").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("fish_sell").setLabel("💰 Bán cá").setStyle(ButtonStyle.Secondary),
+    btnSell,
+    new ButtonBuilder().setCustomId("fish_shop").setLabel("🛒 Cửa hàng ngư cụ").setStyle(ButtonStyle.Secondary), // Nút mở shop nhanh
     new ButtonBuilder().setCustomId("fish_stop").setLabel("❌").setStyle(ButtonStyle.Danger),
   );
 }
@@ -336,17 +348,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const userId   = interaction.user.id;
   const username = interaction.user.username;
 
-  // Hủy collector cũ — tránh nhiều collector chạy đồng thời
   activeCollectors.get(userId)?.stop("replaced");
   activeCollectors.delete(userId);
 
-  // Guard: đang câu
   if (isFishing.has(userId)) {
     await interaction.reply({ content:"🎣 Đang câu rồi, đợi xíu!", ephemeral:true });
     return;
   }
 
-  // Kiểm tra cooldown trước khi animate
   const gearRows = await db.select().from(userFishingGearTable)
     .where(eq(userFishingGearTable.discordId, userId)).limit(1);
 
@@ -381,8 +390,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const cdSec = result.cooldownMs / 1000;
-  await interaction.editReply({ content:"", embeds:[result.embed], components:[buildMainRow(cdSec)] });
+  // Thiết lập ActionRow chứa các nút bấm động
+  const mainRow = buildMainRow(result.fishValue, result.fishName, result.isTrash);
+  await interaction.editReply({ content:"", embeds:[result.embed], components:[mainRow] });
+
+  // 🌟 MẸO KÍCH HOẠT NÚT CÂU LẠI: Chờ đúng số mili-giây hồi chiêu rồi mở khóa nút
+  setTimeout(async () => {
+    try {
+      const components = msg.components[0];
+      if (!components) return;
+      
+      const buttons = components.components.map(c => ButtonBuilder.from(c as any));
+      // Nút thứ nhất (index 0) chính là nút Câu Tiếp
+      buttons[0].setDisabled(false).setLabel("🎣 Câu tiếp ngay!");
+      
+      const updatedRow = new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons);
+      await interaction.editReply({ components: [updatedRow] });
+    } catch {
+      // Bỏ qua nếu tin nhắn bị xoá hoặc người dùng đổi giao diện mồi/bán cá
+    }
+  }, result.cooldownMs);
 
   // ── Collector ──────────────────────────────────────────────
   const collector = msg.createMessageComponentCollector({
@@ -398,20 +425,98 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    // ── Dừng ────────────────────────────────────────────────
     if (i.customId === "fish_stop") {
       collector.stop("user");
       await i.update({ components:[] });
       return;
     }
 
-    // ── Bán cá ──────────────────────────────────────────────
-    if (i.customId === "fish_sell") {
-      await i.reply({ content:"Dùng lệnh **/banca** để bán cá nhé!", ephemeral:true });
+    // 🌟 XỬ LÝ HÀNH ĐỘNG: BÁN CÁ NGAY TẠI CHỖ
+    if (i.customId.startsWith("fish_sell_")) {
+      collector.stop("sold");
+      await i.deferUpdate();
+
+      const [_, __, valueStr, fishName] = i.customId.split("_");
+      const grossValue = parseInt(valueStr, 10);
+      
+      // Tính toán thuế 10% y hệt file banca.ts của bạn
+      const taxAmount = Math.floor(grossValue * TAX_RATE);
+      const netEarned = grossValue - taxAmount;
+
+      const user = await getOrCreateUser(userId, username);
+      
+      // 1. Cộng tiền ròng sau thuế cho người chơi
+      await db
+        .update(discordUsersTable)
+        .set({ balance: user.balance + netEarned, updatedAt: new Date() })
+        .where(eq(discordUsersTable.discordId, userId));
+
+      // 2. Trích tiền thuế chuyển vào tài khoản Bot
+      if (taxAmount > 0) {
+        const botUser = await getOrCreateUser(TAX_BOT_ID, "Bot Thuế");
+        await db
+          .update(discordUsersTable)
+          .set({ balance: botUser.balance + taxAmount, updatedAt: new Date() })
+          .where(eq(discordUsersTable.discordId, TAX_BOT_ID));
+      }
+
+      // Xoá con cá vừa câu ra khỏi túi (Bởi vì lúc câu trúng, hàm doFishing đã lưu vào DB rồi)
+      // Tìm bản ghi cá của user để giảm số lượng đi 1 (hoặc xoá nếu chỉ có 1 con)
+      const fishNames = fishName.split(" + "); // Tách ra phòng trường hợp dính lưới bắt 2 cá
+      for (const name of fishNames) {
+        const existing = await db.select().from(fishInventoryTable)
+          .where(and(eq(fishInventoryTable.discordId, userId), eq(fishInventoryTable.fishName, name)))
+          .limit(1);
+        if (existing.length > 0) {
+          if (existing[0]!.quantity <= 1) {
+            await db.delete(fishInventoryTable).where(eq(fishInventoryTable.id, existing[0]!.id));
+          } else {
+            await db.update(fishInventoryTable)
+              .set({ quantity: existing[0]!.quantity - 1 })
+              .where(eq(fishInventoryTable.id, existing[0]!.id));
+          }
+        }
+      }
+
+      const sellEmbed = new EmbedBuilder()
+        .setColor(0x00cc66)
+        .setTitle("💰 Đã Bán Cá Siêu Tốc!")
+        .setDescription(`Bạn đã bán **${fishName}** trực tiếp cho thương lái tại bến thuyền!\n\n💵 Thu nhập ròng: **+${formatVND(netEarned)}**\n💸 Khấu trừ thuế (${TAX_RATE * 100}%): \`${formatVND(taxAmount)}\``)
+        .addFields({ name: "🏦 Số dư ví của bạn", value: `**${formatVND(user.balance + netEarned)}**` })
+        .setTimestamp();
+
+      // Giữ lại nút Câu Tiếp và nút Shop, tắt nút Bán đi
+      const components = msg.components[0];
+      const buttons = components.components.map(c => ButtonBuilder.from(c as any));
+      
+      // Vô hiệu hoá nút bán cá (Index 2)
+      buttons[2].setDisabled(true).setLabel("❌ Đã bán cá");
+      
+      // Kiểm tra xem thời gian hồi chiêu gốc đã qua chưa để mở/khoá nút Câu tiếp
+      const lastTs = fishingCooldowns.get(userId) ?? 0;
+      const currentCd = getCooldownMs(g.cooldownLevel);
+      const isCdOver = Date.now() - lastTs >= currentCd;
+      buttons[0].setDisabled(!isCdOver).setLabel(isCdOver ? "🎣 Câu tiếp ngay!" : "🎣 Câu tiếp (Đang hồi)");
+
+      await i.editReply({ embeds: [sellEmbed], components: [new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons)] });
       return;
     }
 
-    // ── Đổi mồi ─────────────────────────────────────────────
+    // 🌟 XỬ LÝ HÀNH ĐỘNG: MỞ SHOP CAU CA LUÔN
+    if (i.customId === "fish_shop") {
+      collector.stop("shop");
+      await i.deferUpdate();
+
+      const shopEmbed = new EmbedBuilder()
+        .setColor(0xffaa00)
+        .setTitle("🛒 Tiệm Đồ Câu Cá Bird Bot")
+        .setDescription("Chào mừng đạo hữu đến tiệm đạo cụ! Vui lòng sử dụng các lệnh dưới đây để mua sắm nâng cấp:\n\n🎋 **Mua cần câu mới / mồi xịn:** Sử dụng lệnh `/shopcauca` để xem danh mục và click mua tự động.\n\n*(Giao diện nút mua sắm trực tiếp tại bảng câu đang được đồng bộ hóa hệ thống dữ liệu)*")
+        .setFooter({ text: "Mẹo: Gõ lệnh /shopcauca để nâng cấp cần và mua mồi nhanh nhất!" });
+
+      await i.editReply({ embeds: [shopEmbed], components: [] }); // Dọn dẹp hết các nút câu cá
+      return;
+    }
+
     if (i.customId === "fish_bait") {
       const freshGear = await db.select().from(userFishingGearTable)
         .where(eq(userFishingGearTable.discordId, userId)).limit(1);
@@ -429,7 +534,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    // ── Chọn mồi ────────────────────────────────────────────
     if (i.customId.startsWith("bait_")) {
       const pref = i.customId.replace("bait_", "") as BaitPref;
       baitPrefs.set(userId, pref);
@@ -441,7 +545,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    // ── Câu lại ──────────────────────────────────────────────
     if (i.customId === "fish_again") {
       if (isFishing.has(userId)) {
         await i.reply({ content:"🎣 Đang câu rồi, đợi xíu!", ephemeral:true });
@@ -464,23 +567,35 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       const freshGear = await db.select().from(userFishingGearTable)
         .where(eq(userFishingGearTable.discordId, userId)).limit(1);
       const fg = freshGear[0] ?? g;
-      const freshCd = getCooldownMs(fg.cooldownLevel);
 
       const res = await doFishing(userId, username).finally(() => isFishing.delete(userId));
       if (!res.ok) {
         if (res.reason === "COOLDOWN") {
           const rem = ((res.remainingMs ?? 0) / 1000).toFixed(1);
-          await i.editReply({ content:`⏰ Đợi **${rem}s** nữa!`, embeds:[], components:[buildMainRow(freshCd/1000)] });
+          await i.editReply({ content:`⏰ Đợi **${rem}s** nữa!`, embeds:[], components:[buildMainRow(0, "", true)] });
         }
         return;
       }
-      await i.editReply({ content:"", embeds:[res.embed], components:[buildMainRow(res.cooldownMs/1000)] });
+
+      const nextRow = buildMainRow(res.fishValue, res.fishName, res.isTrash);
+      await i.editReply({ content:"", embeds:[res.embed], components:[nextRow] });
+
+      // Kích hoạt lại bộ đếm cho nút câu tiếp ở lượt bấm lại này
+      setTimeout(async () => {
+        try {
+          const comps = msg.components[0];
+          if (!comps) return;
+          const bts = comps.components.map(c => ButtonBuilder.from(c as any));
+          bts[0].setDisabled(false).setLabel("🎣 Câu tiếp ngay!");
+          await interaction.editReply({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(...bts)] });
+        } catch {}
+      }, res.cooldownMs);
     }
   });
 
   collector.on("end", (_, reason) => {
     activeCollectors.delete(userId);
-    if (reason !== "user" && reason !== "replaced") {
+    if (reason !== "user" && reason !== "replaced" && reason !== "sold" && reason !== "shop") {
       interaction.editReply({ components:[] }).catch(() => {});
     }
   });
