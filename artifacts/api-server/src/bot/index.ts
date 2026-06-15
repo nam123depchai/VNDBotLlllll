@@ -9,6 +9,7 @@ import {
 import { logger } from "../lib/logger.js";
 import { commands, commandBuilders } from "./commands/index.js";
 import { initStocks, updateStockPrices } from "./utils/stock-init.js";
+import { runCharity } from "./utils/charity.js";
 
 async function registerCommands(token: string, clientId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(token);
@@ -65,19 +66,31 @@ export async function startBot(): Promise<void> {
     intents: [GatewayIntentBits.Guilds],
   });
 
+  // Sự kiện khi Bot sẵn sàng hoạt động
   client.once("clientReady", (c) => {
     logger.info({ tag: c.user.tag }, "Bot Discord đã đăng nhập thành công!");
     c.user.setActivity("Tài Xỉu 🎲", { type: ActivityType.Playing });
 
-    // Init stocks
+    // Khởi tạo hệ thống thị trường chứng khoán
     initStocks().catch(err => logger.error({ err }, "Lỗi init stocks"));
 
-    // Stock price update every 5 minutes
+    // Tự động cập nhật giá cổ phiếu mỗi 5 phút
     setInterval(() => {
       updateStockPrices().catch(err => logger.error({ err }, "Lỗi update stock prices"));
     }, 5 * 60 * 1000);
-  });
 
+    // ========================================================
+    // 🔥 HỆ THỐNG TỪ THIỆN: Tự động phát chấn tế mỗi 30 phút
+    // (Gom gọn vào trong này để biến `c` hoạt động chính xác)
+    // ========================================================
+    setInterval(() => {
+      runCharity(c).catch(err => logger.error({ err }, "Lỗi chạy hệ thống từ thiện"));
+    }, 30 * 60 * 1000);
+    // ========================================================
+
+  }); // Đóng sự kiện clientReady chuẩn xác tại đây!
+
+  // Xử lý tương tác Slash Commands
   client.on("interactionCreate", async (interaction: Interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
