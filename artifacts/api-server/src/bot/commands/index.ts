@@ -83,6 +83,7 @@ export const commands: Map<string, Command> = new Map([
   [taocode.data.name, taocode as Command],
   [nhapcode.data.name, nhapcode as Command],
   [help.data.name, help as Command],
+  [quyengop.data.name, quyengop as Command],
 ]);
 
 export const commandBuilders = [
@@ -125,4 +126,5 @@ export const commandBuilders = [
   taocode.data.toJSON(),
   nhapcode.data.toJSON(),
   help.data.toJSON(),
+  quyengop.data.toJSON(),
 ];
