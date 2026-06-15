@@ -22,6 +22,9 @@ async function registerCommands(token: string, clientId: string): Promise<void> 
           body: commandBuilders,
         });
         logger.info({ count: commandBuilders.length, mode: "guild", guildId }, "Đăng ký tức thì thành công");
+        // Xóa global commands để tránh trùng lặp với guild commands
+        await rest.put(Routes.applicationCommands(clientId), { body: [] });
+        logger.info("Đã xóa global commands để tránh trùng lặp");
         return;
       } catch (guildErr: unknown) {
         const err = guildErr as { code?: number; message?: string };
