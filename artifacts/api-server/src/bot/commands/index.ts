@@ -33,6 +33,7 @@ import * as topboss from "./topboss.js";
 import * as resetthitruong from "./resetthitruong.js";
 import * as taocode from "./taocode.js";
 import * as nhapcode from "./nhapcode.js";
+import * as help from "./help.js";
 import type { SlashCommandBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -80,6 +81,7 @@ export const commands: Map<string, Command> = new Map([
   [resetthitruong.data.name, resetthitruong as Command],
   [taocode.data.name, taocode as Command],
   [nhapcode.data.name, nhapcode as Command],
+  [help.data.name, help as Command],
 ]);
 
 export const commandBuilders = [
@@ -121,4 +123,5 @@ export const commandBuilders = [
   resetthitruong.data.toJSON(),
   taocode.data.toJSON(),
   nhapcode.data.toJSON(),
+  help.data.toJSON(),
 ];
