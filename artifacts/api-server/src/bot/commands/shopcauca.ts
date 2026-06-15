@@ -18,7 +18,7 @@ import { formatVND } from "../utils/currency.js";
 // SHOP ITEMS
 // ============================================================
 
-type ShopCategory = "rod" | "float" | "bait" | "bait_gold" | "bait_divine";
+type ShopCategory = "rod" | "cooldown" | "bait" | "bait_gold" | "bait_divine";
 
 type ShopItem = {
   id: string;
@@ -132,7 +132,7 @@ const SHOP_ITEMS: ShopItem[] = [
 
 const CATEGORIES = [
   { value: "rod",            label: "🎣 Cần Câu",       description: "4 loại cần câu từ gỗ đến thần thánh" },
-  { value: "float",          label: "🎯 Phao Câu",       description: "Giảm thời gian hồi chiêu xuống 5s" },
+  { value: "cooldown",       label: "🎯 Phao Câu",       description: "Giảm thời gian hồi chiêu xuống 5s" },
   { value: "bait",     label: "🪱 Mồi Giun",       description: "Mồi cơ bản tăng cá không phổ biến" },
   { value: "bait_gold",   label: "🦐 Mồi Tôm",        description: "Mồi cao cấp tăng cá hiếm+" },
   { value: "bait_divine", label: "✨ Mồi Vàng",       description: "Mồi thần tăng cá huyền thoại & mythic" },
