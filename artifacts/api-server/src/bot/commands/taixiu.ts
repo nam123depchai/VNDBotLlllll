@@ -78,6 +78,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const choice = interaction.options.getString("cuoc", true) as "T" | "X";
   const betInput = interaction.options.getString("sotien", true);
 
+  // Defer ngay để tránh Discord timeout 3s (DB free tier có thể chậm)
+  await interaction.deferReply();
+
   const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
 
   if (user.balance <= 0) {
@@ -86,7 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setTitle("❌ Không đủ tiền!")
       .setDescription("Bạn không có tiền để cược. Hãy dùng `/lamviec` để kiếm tiền trước nhé!")
       .setFooter({ text: "Nghèo mà vẫn muốn đánh 😂" });
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
 
@@ -97,7 +100,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setColor(0xff4444)
       .setTitle("❌ Số tiền không hợp lệ!")
       .setDescription("Nhập số tiền hợp lệ (VD: `1000`, `500`) hoặc gõ `all` để cược tất cả.");
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
 
@@ -106,7 +109,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setColor(0xff4444)
       .setTitle("❌ Không đủ tiền!")
       .setDescription(`Số dư của bạn chỉ còn **${formatVND(user.balance)}**. Không thể cược **${formatVND(betAmount)}**.`);
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
 
@@ -115,7 +118,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setColor(0xff4444)
       .setTitle("❌ Cược quá ít!")
       .setDescription("Số tiền cược tối thiểu là **1.000₫**.");
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed] });
     return;
   }
 
@@ -190,5 +193,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   embed.setFooter({ text: isTrip ? "🎉🎉🎉 TRÚNG LỚN! 🎉🎉🎉" : isWin ? "Hên quá! Chơi tiếp không? 😏" : "Xui rồi... Thử lại lần nữa không? 🥲" })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed], content: isTrip ? `<@${interaction.user.id}> ĐÃ NỔ HŨ TÀI XỈU! 🎉🎉🎉` : undefined });
+  await interaction.editReply({ embeds: [embed], content: isTrip ? `<@${interaction.user.id}> ĐÃ NỔ HŨ TÀI XỈU! 🎉🎉🎉` : undefined });
 }
