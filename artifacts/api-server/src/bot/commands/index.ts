@@ -35,6 +35,7 @@ import * as taocode from "./taocode.js";
 import * as nhapcode from "./nhapcode.js";
 import * as help from "./help.js";
 import * as quyengop from "./quyengop.js";
+import * as longshort from "./longshort.js";
 import type { SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -84,6 +85,7 @@ export const commands: Map<string, Command> = new Map([
   [nhapcode.data.name, nhapcode as Command],
   [help.data.name, help as Command],
   [quyengop.data.name, quyengop as Command],
+  [longshort.data.name, longshort as Command],
 ]);
 
 export const commandBuilders = [
@@ -127,4 +129,5 @@ export const commandBuilders = [
   nhapcode.data.toJSON(),
   help.data.toJSON(),
   quyengop.data.toJSON(),
+  longshort.data.toJSON(),
 ];
