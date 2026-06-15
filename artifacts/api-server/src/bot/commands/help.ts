@@ -30,7 +30,6 @@ const CATEGORIES: Record<HelpCategory, { label: string; emoji: string; color: nu
       { name: "/chuyentien",  desc: "Chuyển tiền cho người khác" },
       { name: "/dautu",       desc: "Đầu tư cổ phiếu / crypto" },
       { name: "/lamphat",     desc: "Xem tình hình lạm phát server" },
-      { name: "/chonglamphat",desc: "Mua vàng chống lạm phát" },
     ],
   },
   fishing: {
@@ -57,9 +56,8 @@ const CATEGORIES: Record<HelpCategory, { label: string; emoji: string; color: nu
     label: "Shop & Vật Phẩm", emoji: "🛒", color: 0xff9900,
     commands: [
       { name: "/tuimu",       desc: "Mở túi mù ngẫu nhiên" },
-      { name: "/tuimuThuong", desc: "Mở túi mù thường" },
-      { name: "/tuimuVip",    desc: "Mở túi mù VIP" },
-      { name: "/tuimuSieu",   desc: "Mở túi mù siêu hiếm" },
+      { name: "/tuimu-vip",    desc: "Mở túi mù VIP" },
+      { name: "/tuimu-sieu",   desc: "Mở túi mù siêu hiếm" },
       { name: "/muack",       desc: "Mua vật phẩm từ chợ" },
       { name: "/banck",       desc: "Bán vật phẩm lên chợ" },
       { name: "/sanck",       desc: "Xem chợ trao đổi vật phẩm" },

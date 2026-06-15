@@ -34,11 +34,11 @@ import * as resetthitruong from "./resetthitruong.js";
 import * as taocode from "./taocode.js";
 import * as nhapcode from "./nhapcode.js";
 import * as help from "./help.js";
-import type { SlashCommandBuilder } from "discord.js";
+import type { SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
 interface Command {
-  data: SlashCommandBuilder;
+  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 

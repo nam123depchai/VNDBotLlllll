@@ -4,7 +4,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { db, achievementsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getOrCreateUser } from "../utils/db-helpers.js";
 
 const ALL_ACHIEVEMENTS = [
@@ -30,8 +30,7 @@ export async function checkAchievement(discordId: string, key: string): Promise<
   const existing = await db
     .select()
     .from(achievementsTable)
-    .where(eq(achievementsTable.discordId, discordId))
-    .where(eq(achievementsTable.achievementKey, key));
+    .where(and(eq(achievementsTable.discordId, discordId), eq(achievementsTable.achievementKey, key)));
 
   if (existing.length > 0 && existing[0]!.unlocked) return true;
   if (existing.length === 0) {
@@ -53,8 +52,7 @@ export async function unlockAchievement(discordId: string, key: string): Promise
   const existing = await db
     .select()
     .from(achievementsTable)
-    .where(eq(achievementsTable.discordId, discordId))
-    .where(eq(achievementsTable.achievementKey, key));
+    .where(and(eq(achievementsTable.discordId, discordId), eq(achievementsTable.achievementKey, key)));
 
   if (existing.length > 0 && existing[0]!.unlocked) return false;
 
@@ -79,12 +77,13 @@ export async function unlockAchievement(discordId: string, key: string): Promise
   return true;
 }
 
-export const data = new SlashCommandBuilder()
+const builder = new SlashCommandBuilder()
   .setName("thanhtich")
   .setDescription("Xem danh sách thành tích của bạn")
   .addUserOption((option) =>
     option.setName("user").setDescription("Xem thành tích người khác").setRequired(false)
   );
+export const data = builder;
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const targetUser = interaction.options.getUser("user") || interaction.user;
@@ -98,8 +97,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const unlocked = await db
     .select()
     .from(achievementsTable)
-    .where(eq(achievementsTable.discordId, targetUser.id))
-    .where(eq(achievementsTable.unlocked, true));
+    .where(and(eq(achievementsTable.discordId, targetUser.id), eq(achievementsTable.unlocked, true)));
 
   const unlockedKeys = new Set(unlocked.map(a => a.achievementKey));
 
