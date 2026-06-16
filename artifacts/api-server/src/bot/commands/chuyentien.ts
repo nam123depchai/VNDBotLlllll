@@ -7,7 +7,7 @@ import { getOrCreateUser, updateBalance, addXp } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 
 // ID tài khoản của Bot để chuyển tiền phí/tiền phạt vào làm quỹ từ thiện
-const BOT_DISCORD_ID = "ID_BOT_CỦA_BẠN_Ở_ĐÂY"; // 🌟 Thay ID Bot của bạn vào đây
+// Bot ID lấy động từ client thay vì hardcode
 
 export const data = new SlashCommandBuilder()
   .setName("chuyentien")
@@ -138,8 +138,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     // Nếu có phí giao dịch, chuyển thẳng số tiền phí đó vào ví tài khoản của Bot (Quỹ từ thiện)
     if (fee > 0) {
-      const botUser = await getOrCreateUser(BOT_DISCORD_ID, "Bird Bot Fund");
-      await updateBalance(BOT_DISCORD_ID, botUser.balance + fee);
+      const botId = interaction.client.user.id;
+      const botUser = await getOrCreateUser(botId, interaction.client.user.username);
+      await updateBalance(botId, botUser.balance + fee);
     }
 
     // Tạo Embed kết quả giao dịch
@@ -148,8 +149,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (isScammed) {
       // TRƯỜNG HỢP BỊ MẤT TRẮNG (CHỢ ĐEN CƯỚP)
       // Người nhận KHÔNG nhận được tiền, tiền chuyển khoản mất tích (Bay vào ví Bot hoặc biến mất hoàn toàn, ở đây cho vào ví bot làm từ thiện luôn)
-      const botUser = await getOrCreateUser(BOT_DISCORD_ID, "Bird Bot Fund");
-      await updateBalance(BOT_DISCORD_ID, botUser.balance + amount);
+      const botId = interaction.client.user.id;
+      const botUser = await getOrCreateUser(botId, interaction.client.user.username);
+      await updateBalance(interaction.client.user.id, botUser.balance + amount);
 
       embed
         .setColor(0xff0000)
