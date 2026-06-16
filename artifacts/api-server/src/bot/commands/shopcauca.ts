@@ -10,7 +10,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { db, userFishingGearTable, discordUsersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getOrCreateUser } from "../utils/db-helpers.js";
 import { formatVND } from "../utils/currency.js";
 
@@ -213,6 +213,7 @@ export const data = new SlashCommandBuilder()
   .setDescription("🛒 Cửa hàng câu cá — cần, phao, mồi đa dạng");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
   const userId = interaction.user.id;
   const user = await getOrCreateUser(userId, interaction.user.username);
 
@@ -244,17 +245,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const buyRows = buildBuyButtons(currentCategory, gear ? { rodLevel: gear.rodLevel, cooldownLevel: gear.cooldownLevel } : null);
 
-  const reply = await interaction.reply({
+  const reply = await interaction.editReply({
     embeds: [embed],
     components: [selectRow, ...buyRows],
-    ephemeral: true,
-  });
+    });
 
   const collector = reply.createMessageComponentCollector({ time: 120_000 });
 
   collector.on("collect", async (i) => {
     if (i.user.id !== userId) {
-      await i.reply({ content: "Không phải của bạn!", ephemeral: true });
+      await i.reply({ content: "Không phải của bạn!" });
       return;
     }
 
@@ -295,7 +295,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
       const latestUser = await getOrCreateUser(userId, interaction.user.username);
       if (latestUser.balance < item.price) {
-        await i.reply({ content: `❌ Không đủ tiền! Cần **${formatVND(item.price)}**, bạn có **${formatVND(latestUser.balance)}**`, ephemeral: true });
+        await i.reply({ content: `❌ Không đủ tiền! Cần **${formatVND(item.price)}**, bạn có **${formatVND(latestUser.balance)}**` });
         return;
       }
 
@@ -316,7 +316,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .set({ hasRod: true, rodLevel: item.rodLevel, updatedAt: new Date() })
             .where(eq(userFishingGearTable.id, existingGear[0]!.id));
         }
-        await i.reply({ content: `✅ Đã mua **${item.name}**! Giờ có thể câu ${item.detail}`, ephemeral: true });
+        await i.reply({ content: `✅ Đã mua **${item.name}**! Giờ có thể câu ${item.detail}` });
 
       } else if (item.cooldownLevel !== undefined) {
         // Float upgrade
@@ -327,7 +327,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .set({ cooldownLevel: item.cooldownLevel, updatedAt: new Date() })
             .where(eq(userFishingGearTable.id, existingGear[0]!.id));
         }
-        await i.reply({ content: `✅ Đã trang bị **${item.name}**! ${item.detail}`, ephemeral: true });
+        await i.reply({ content: `✅ Đã trang bị **${item.name}**! ${item.detail}` });
 
       } else if (item.baitType && item.baitQty) {
         // Bait purchase
@@ -347,8 +347,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         }
         await i.reply({
           content: `✅ Đã mua **${item.name}**! Tổng ${item.baitType === "basic" ? `🪱 ${newBasic}` : item.baitType === "premium" ? `🦐 ${newPremium}` : `✨ ${newLegendary}`} mồi`,
-          ephemeral: true,
-        });
+          });
       }
 
       // Refresh embed
