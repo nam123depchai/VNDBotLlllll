@@ -1,4 +1,4 @@
-import { pgTable, text, serial, bigint, integer, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, bigint, integer, timestamp, real, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -38,3 +38,17 @@ export const insertUserStockSchema = createInsertSchema(userStocksTable).omit({
 });
 export type InsertUserStock = z.infer<typeof insertUserStockSchema>;
 export type UserStock = typeof userStocksTable.$inferSelect;
+
+export const derivativesPositionsTable = pgTable("derivatives_positions", {
+  id: serial("id").primaryKey(),
+  discordId: text("discord_id").notNull(),
+  channelId: text("channel_id").notNull(),
+  symbol: text("symbol").notNull(),
+  positionType: text("position_type").notNull(), // "long" | "short"
+  betAmount: bigint("bet_amount", { mode: "number" }).notNull(),
+  startPrice: bigint("start_price", { mode: "number" }).notNull(),
+  settleAt: timestamp("settle_at").notNull(),
+  isSettled: boolean("is_settled").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type DerivativesPosition = typeof derivativesPositionsTable.$inferSelect;
