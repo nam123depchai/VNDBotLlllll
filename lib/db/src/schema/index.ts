@@ -5,5 +5,7 @@ export * from "./achievements";
 export * from "./stocks";
 export * from "./fish-inventory";
 export * from "./boss-leaderboard";
+export * from "./boss-pet";
+export * from "./boss-gear";
 export * from "./lottery";
 export * from "./redemption-codes";
