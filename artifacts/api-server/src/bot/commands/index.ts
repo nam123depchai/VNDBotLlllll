@@ -29,6 +29,8 @@ import * as tuido from "./tuido.js";
 import * as shopcauca from "./shopcauca.js";
 import * as banca from "./banca.js";
 import * as dauboss from "./dauboss.js";
+import * as pet from "./pet.js";
+import * as shopdauboss from "./shopdauboss.js";
 import * as topboss from "./topboss.js";
 import * as resetthitruong from "./resetthitruong.js";
 import * as taocode from "./taocode.js";
@@ -79,6 +81,8 @@ export const commands: Map<string, Command> = new Map([
   [shopcauca.data.name, shopcauca as Command],
   [banca.data.name, banca as Command],
   [dauboss.data.name, dauboss as Command],
+  [pet.data.name, pet as Command],
+  [shopdauboss.data.name, shopdauboss as Command],
   [topboss.data.name, topboss as Command],
   [resetthitruong.data.name, resetthitruong as Command],
   [taocode.data.name, taocode as Command],
@@ -123,6 +127,8 @@ export const commandBuilders = [
   shopcauca.data.toJSON(),
   banca.data.toJSON(),
   dauboss.data.toJSON(),
+  pet.data.toJSON(),
+  shopdauboss.data.toJSON(),
   topboss.data.toJSON(),
   resetthitruong.data.toJSON(),
   taocode.data.toJSON(),
