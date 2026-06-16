@@ -1,203 +1,158 @@
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type Client,
   EmbedBuilder,
 } from "discord.js";
-import { db, stocksTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, stocksTable, derivativesPositionsTable } from "@workspace/db";
+import { eq, and, lte } from "drizzle-orm";
 import { getOrCreateUser, updateBalance } from "../utils/db-helpers.js";
 import { formatVND, parseBetAmount } from "../utils/currency.js";
 
+// ═══════════════════════════════════════════════════════════
+// SETTLEMENT — chạy định kỳ (gọi từ stock-init interval)
+// ═══════════════════════════════════════════════════════════
+export async function settleExpiredPositions(client: Client): Promise<void> {
+  const now = new Date();
+  const pending = await db.select().from(derivativesPositionsTable)
+    .where(and(eq(derivativesPositionsTable.isSettled, false), lte(derivativesPositionsTable.settleAt, now)));
+
+  for (const pos of pending) {
+    try {
+      const stockRows = await db.select().from(stocksTable).where(eq(stocksTable.symbol, pos.symbol)).limit(1);
+      if (!stockRows[0]) continue;
+
+      const endPrice  = stockRows[0].price;
+      const isDraw    = pos.startPrice === endPrice;
+      const isWin     = !isDraw && (
+        (pos.positionType === "long"  && endPrice > pos.startPrice) ||
+        (pos.positionType === "short" && endPrice < pos.startPrice)
+      );
+
+      const botId   = client.user!.id;
+      const botName = client.user!.username;
+
+      const resultEmbed = new EmbedBuilder().setTimestamp();
+      const priceDiff   = `${formatVND(pos.startPrice)} ➡️ ${formatVND(endPrice)}`;
+      const posEmoji    = pos.positionType === "long" ? "🟢 LONG" : "🔴 SHORT";
+
+      if (isDraw) {
+        const u = await getOrCreateUser(pos.discordId, "user");
+        await updateBalance(pos.discordId, u.balance + pos.betAmount);
+        resultEmbed.setColor(0xffaa00).setTitle(`🟡 HÒA VỐN — ${pos.symbol}`)
+          .setDescription(`<@${pos.discordId}> hú hồn! Giá không đổi, hoàn lại tiền cọc.`)
+          .addFields({ name:"💰 Hoàn trả", value:formatVND(pos.betAmount) });
+      } else if (isWin) {
+        const tax      = Math.floor(pos.betAmount * 0.1);
+        const profit   = pos.betAmount - tax;
+        const payout   = pos.betAmount + profit;
+        const u        = await getOrCreateUser(pos.discordId, "user");
+        await updateBalance(pos.discordId, u.balance + payout);
+        const bot      = await getOrCreateUser(botId, botName);
+        await updateBalance(botId, bot.balance + tax);
+        resultEmbed.setColor(0x00cc66).setTitle(`🎉 THẮNG — ${pos.symbol}`)
+          .setDescription(`Chúc mừng cá mập <@${pos.discordId}> đã đoán đúng!`)
+          .addFields(
+            { name:"🎮 Vị thế", value:posEmoji, inline:true },
+            { name:"📊 Giá", value:priceDiff, inline:true },
+            { name:"💰 Lãi thu về", value:`+${formatVND(profit)} (sau 10% thuế)`, inline:false },
+          ).setFooter({ text:"Đúng là thiên tài đầu tư phái sinh! 😎" });
+      } else {
+        const bot = await getOrCreateUser(botId, botName);
+        await updateBalance(botId, bot.balance + pos.betAmount);
+        resultEmbed.setColor(0xff3344).setTitle(`💸 CHÁY TÀI KHOẢN — ${pos.symbol}`)
+          .setDescription(`Đội lái của sàn úp bô thành công <@${pos.discordId}>! 🏴‍☠️`)
+          .addFields(
+            { name:"🎮 Vị thế", value:posEmoji, inline:true },
+            { name:"📊 Giá", value:priceDiff, inline:true },
+            { name:"📉 Thiệt hại", value:`-${formatVND(pos.betAmount)}`, inline:false },
+          ).setFooter({ text:"Ra bờ sông hóng gió tí đi... 🌊" });
+      }
+
+      // Đánh dấu đã settle
+      await db.update(derivativesPositionsTable)
+        .set({ isSettled: true })
+        .where(eq(derivativesPositionsTable.id, pos.id));
+
+      // Gửi kết quả vào channel gốc
+      const channel = await client.channels.fetch(pos.channelId).catch(() => null);
+      if (channel && 'send' in channel) {
+        await channel.send({
+          content: `<@${pos.discordId}> Phiên phái sinh **${pos.symbol}** đã chốt!`,
+          embeds: [resultEmbed],
+        });
+      }
+    } catch (err) {
+      console.error("Lỗi settle position:", err);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SLASH COMMAND
+// ═══════════════════════════════════════════════════════════
 export const data = new SlashCommandBuilder()
   .setName("longshort")
-  .setDescription("Đặt lệnh phái sinh Crypto/Chứng khoán (Chốt nến sau 5 phút)")
-  .addStringOption((option) =>
-    option
-      .setName("ma")
-      .setDescription("Mã muốn đặt cược (VD: BTC, ETH, VND...)")
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName("lenh")
-      .setDescription("Chọn xu hướng thị trường")
-      .setRequired(true)
-      .addChoices(
-        { name: "🟢 Long (Dự đoán TĂNG)", value: "long" },
-        { name: "🔴 Short (Dự đoán GIẢM)", value: "short" }
-      )
-  )
-  .addStringOption((option) =>
-    option
-      .setName("sotien")
-      .setDescription("Số tiền vào lệnh (hoặc gõ 'all')")
-      .setRequired(true)
-  );
+  .setDescription("📈 Đặt lệnh phái sinh Crypto/Chứng khoán (chốt sau 5 phút)")
+  .addStringOption((o) => o.setName("ma").setDescription("Mã (VD: BTC, ETH, VND...)").setRequired(true))
+  .addStringOption((o) => o.setName("lenh").setDescription("Xu hướng").setRequired(true)
+    .addChoices({ name:"🟢 Long (dự đoán TĂNG)", value:"long" }, { name:"🔴 Short (dự đoán GIẢM)", value:"short" }))
+  .addStringOption((o) => o.setName("sotien").setDescription("Số tiền vào lệnh (hoặc 'all')").setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const symbol = interaction.options.getString("ma", true).toUpperCase().trim();
-  const positionType = interaction.options.getString("lenh", true);
+  const symbol      = interaction.options.getString("ma", true).toUpperCase().trim();
+  const posType     = interaction.options.getString("lenh", true);
   const amountInput = interaction.options.getString("sotien", true);
 
   await interaction.deferReply();
 
-  // 1. Kiểm tra xem mã chứng khoán/crypto có tồn tại không
-  const stockResult = await db
-    .select()
-    .from(stocksTable)
-    .where(eq(stocksTable.symbol, symbol))
-    .limit(1);
-
-  if (stockResult.length === 0) {
-    await interaction.editReply({
-      content: `❌ Không tìm thấy mã **${symbol}** trên sàn giao dịch!`,
-    });
+  const stockRows = await db.select().from(stocksTable).where(eq(stocksTable.symbol, symbol)).limit(1);
+  if (!stockRows[0]) {
+    await interaction.editReply({ content:`❌ Không tìm thấy mã **${symbol}** trên sàn!` });
     return;
   }
 
-  const stock = stockResult[0]!;
-  const startPrice = stock.price; // Khóa giá vào lệnh ban đầu
+  const stock      = stockRows[0];
+  const startPrice = stock.price;
+  const user       = await getOrCreateUser(interaction.user.id, interaction.user.username);
+  const bet        = parseBetAmount(amountInput, user.balance);
 
-  // 2. Kiểm tra ví tiền người chơi
-  const user = await getOrCreateUser(interaction.user.id, interaction.user.username);
-  const betAmount = parseBetAmount(amountInput, user.balance);
-
-  if (betAmount === null || betAmount <= 0) {
-    await interaction.editReply({ content: "❌ Số tiền đặt cược không hợp lệ!" });
+  if (!bet || bet <= 0) { await interaction.editReply({ content:"❌ Số tiền không hợp lệ!" }); return; }
+  if (bet < 10_000)     { await interaction.editReply({ content:"❌ Tối thiểu **10.000₫**!" }); return; }
+  if (bet > user.balance) {
+    await interaction.editReply({ content:`❌ Không đủ tiền! Số dư: **${formatVND(user.balance)}**` });
     return;
   }
 
-  if (betAmount > user.balance) {
-    await interaction.editReply({
-      content: `❌ Bạn không đủ tiền mặt! Số dư hiện tại: **${formatVND(user.balance)}**`,
-    });
-    return;
-  }
+  // Trừ tiền cọc + lưu position vào DB (không dùng setTimeout)
+  await updateBalance(interaction.user.id, user.balance - bet);
 
-  if (betAmount < 10_000) {
-    await interaction.editReply({ content: "❌ Số tiền vào lệnh tối thiểu phải từ **10.000₫**!" });
-    return;
-  }
+  const settleAt = new Date(Date.now() + 5 * 60_000);
+  await db.insert(derivativesPositionsTable).values({
+    discordId:    interaction.user.id,
+    channelId:    interaction.channelId,
+    symbol,
+    positionType: posType,
+    betAmount:    bet,
+    startPrice,
+    settleAt,
+  });
 
-  // 3. Khấu trừ tiền cọc ngay khi mở lệnh để tránh gian lận
-  await updateBalance(interaction.user.id, user.balance - betAmount);
+  const posEmoji   = posType === "long" ? "🟢 LONG" : "🔴 SHORT";
+  const endEpoch   = Math.floor(settleAt.getTime() / 1000);
 
-  // Thời gian chờ chốt nến (5 phút để đồng bộ với chu kỳ update giá toàn sàn)
-  const durationMs = 5 * 60 * 1000;
-  const endTimestamp = Math.floor((Date.now() + durationMs) / 1000);
-
-  // Gửi Embed thông báo mở vị thế thành công
-  const positionEmoji = positionType === "long" ? "🟢 LONG" : "🔴 SHORT";
   const embed = new EmbedBuilder()
-    .setColor(positionType === "long" ? 0x00ff66 : 0xff3344)
-    .setTitle(`📈 VỊ THẾ PHÁI SINH ĐÃ MỞ — ${symbol}`)
-    .setDescription(
-      `Thương vụ mạo hiểm của công dân <@${interaction.user.id}> đã chính thức lên sàn!`
-    )
+    .setColor(posType === "long" ? 0x00ff66 : 0xff3344)
+    .setTitle(`📈 VỊ THẾ ĐÃ MỞ — ${symbol}`)
+    .setDescription(`Thương vụ của <@${interaction.user.id}> đã lên sàn!`)
     .addFields(
-      { name: "🎮 Vị thế", value: `**${positionEmoji}**`, inline: true },
-      { name: "💰 Tiền đặt cọc", value: `**${formatVND(betAmount)}**`, inline: true },
-      { name: "📊 Giá mở lệnh", value: `**${formatVND(startPrice)}**`, inline: true },
-      { name: "⏳ Thời gian chốt nến", value: `Chốt vị thế <t:${endTimestamp}:R> (<t:${endTimestamp}:T>)` }
+      { name:"🎮 Vị thế",          value:`**${posEmoji}**`,          inline:true },
+      { name:"💰 Tiền cọc",         value:`**${formatVND(bet)}**`,    inline:true },
+      { name:"📊 Giá mở lệnh",      value:`**${formatVND(startPrice)}**`, inline:true },
+      { name:"⏳ Chốt nến",         value:`<t:${endEpoch}:R> (<t:${endEpoch}:T>)` },
     )
-    .setFooter({ text: "Vui lòng giữ vững tâm lý, sàn đang chạy nến..." })
+    .setFooter({ text:"Vị thế lưu vào DB — bot restart vẫn chốt được!" })
     .setTimestamp();
 
-  await interaction.editReply({ embeds: [embed] });
-
-  // 4. Chờ 5 phút sau để quét giá mới và phân định thắng thua
-  setTimeout(async () => {
-    try {
-      // Lấy giá mới nhất từ Database
-      const latestStockResult = await db
-        .select()
-        .from(stocksTable)
-        .where(eq(stocksTable.symbol, symbol))
-        .limit(1);
-
-      const latestStock = latestStockResult[0]!;
-      const endPrice = latestStock.price;
-
-      // Lấy thông tin mới nhất của Bot để cộng thuế/tiền thua
-      const botId = interaction.client.user.id;
-      const botName = interaction.client.user.username;
-
-      let isWin = false;
-      let isDraw = startPrice === endPrice;
-
-      if (!isDraw) {
-        if (positionType === "long" && endPrice > startPrice) isWin = true;
-        if (positionType === "short" && endPrice < startPrice) isWin = true;
-      }
-
-      const resultEmbed = new EmbedBuilder().setTimestamp();
-      const priceDiffText = `${formatVND(startPrice)} ➡️ ${formatVND(endPrice)}`;
-
-      if (isDraw) {
-        // HÒA VỐN: Hoàn lại tiền cược
-        const currentUser = await getOrCreateUser(interaction.user.id, interaction.user.username);
-        await updateBalance(interaction.user.id, currentUser.balance + betAmount);
-
-        resultEmbed
-          .setColor(0xffaa00)
-          .setTitle(`🟡 LỆNH PHÁI SINH HÒA VỐN — ${symbol}`)
-          .setDescription(`<@${interaction.user.id}> hú hồn! Giá không thay đổi, sàn hoàn lại tiền cọc.`)
-          .addFields(
-            { name: "📊 Biến động giá", value: priceDiffText },
-            { name: "💰 Tiền hoàn trả", value: `**${formatVND(betAmount)}**` }
-          );
-      } else if (isWin) {
-        // THẮNG: Trích 10% làm thuế cho Bot, trả 90% lãi cho người chơi
-        const taxAmount = Math.floor(betAmount * 0.1);
-        const winAmount = betAmount - taxAmount; // Tiền lãi thuần
-        const totalPayout = betAmount + winAmount; // Hoàn cọc + Lãi
-
-        // Cộng tiền cho người chơi
-        const currentUser = await getOrCreateUser(interaction.user.id, interaction.user.username);
-        await updateBalance(interaction.user.id, currentUser.balance + totalPayout);
-
-        // Nộp thuế vào ví của Bot
-        const botUser = await getOrCreateUser(botId, botName);
-        await updateBalance(botId, botUser.balance + taxAmount);
-
-        resultEmbed
-          .setColor(0x00cc66)
-          .setTitle(`🎉 LỆNH PHÁI SINH CHIẾN THẮNG — ${symbol}`)
-          .setDescription(`Chúc mừng cá mập <@${interaction.user.id}> đã đoán đúng sóng thị trường!`)
-          .addFields(
-            { name: "🎮 Vị thế gốc", value: `**${positionEmoji}**`, inline: true },
-            { name: "📊 Biến động giá", value: priceDiffText, inline: true },
-            { name: "💰 Tiền lãi thu về", value: `**+${formatVND(winAmount)}** (Đã trừ 10% thuế)`, inline: false },
-            { name: "🏦 Thuế nộp Quỹ", value: `**${formatVND(taxAmount)}** gửi vào ví <@${botId}>`, inline: true }
-          )
-          .setFooter({ text: "Đúng là thiên tài đầu tư phái sinh! 😎" });
-      } else {
-        // THUA: Cháy tài khoản, tiền cược bay thẳng vào ví Bot
-        const botUser = await getOrCreateUser(botId, botName);
-        await updateBalance(botId, botUser.balance + betAmount);
-
-        resultEmbed
-          .setColor(0xff3344)
-          .setTitle(`💸 LỆNH PHÁI SINH CHÁY TÀI KHOẢN — ${symbol}`)
-          .setDescription(`Rất tiếc! Đội lái của sàn đã úp bô thành công công dân <@${interaction.user.id}>.`)
-          .addFields(
-            { name: "🎮 Vị thế gốc", value: `**${positionEmoji}**`, inline: true },
-            { name: "📊 Biến động giá", value: priceDiffText, inline: true },
-            { name: "📉 Thiệt hại", value: `**-${formatVND(betAmount)}** (Bị thanh lý vị thế)`, inline: false },
-            { name: "🏦 Ngân khố Bot", value: `Quỹ từ thiện <@${botId}> được tài trợ thêm **+${formatVND(betAmount)}**`, inline: true }
-          )
-          .setFooter({ text: "Ra bờ sông hóng gió tí cho mát đi bạn... 🌊" });
-      }
-
-      // Tag tên người chơi và gửi kết quả chốt phiên
-      await interaction.followUp({
-        content: `<@${interaction.user.id}> Phiên phái sinh mã **${symbol}** của bạn đã có kết quả chốt nến!`,
-        embeds: [resultEmbed],
-      });
-
-    } catch (error) {
-      console.error("❌ Lỗi khi chốt phiên phái sinh:", error);
-    }
-  }, durationMs);
+  await interaction.editReply({ embeds:[embed] });
 }
-
