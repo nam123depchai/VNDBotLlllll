@@ -33,6 +33,9 @@ import * as pet from "./pet.js";
 import * as shopdauboss from "./shopdauboss.js";
 import * as topboss from "./topboss.js";
 import * as resetthitruong from "./resetthitruong.js";
+import * as thitruong from "./thitruong.js";
+import * as suki from "./suki.js";
+import * as ranktrader from "./ranktrader.js";
 import * as taocode from "./taocode.js";
 import * as nhapcode from "./nhapcode.js";
 import * as help from "./help.js";
@@ -85,6 +88,9 @@ export const commands: Map<string, Command> = new Map([
   [shopdauboss.data.name, shopdauboss as Command],
   [topboss.data.name, topboss as Command],
   [resetthitruong.data.name, resetthitruong as Command],
+  [thitruong.data.name, thitruong as Command],
+  [suki.data.name, suki as Command],
+  [ranktrader.data.name, ranktrader as Command],
   [taocode.data.name, taocode as Command],
   [nhapcode.data.name, nhapcode as Command],
   [help.data.name, help as Command],
@@ -131,6 +137,9 @@ export const commandBuilders = [
   shopdauboss.data.toJSON(),
   topboss.data.toJSON(),
   resetthitruong.data.toJSON(),
+  thitruong.data.toJSON(),
+  suki.data.toJSON(),
+  ranktrader.data.toJSON(),
   taocode.data.toJSON(),
   nhapcode.data.toJSON(),
   help.data.toJSON(),

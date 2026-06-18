@@ -11,12 +11,13 @@ export const stocksTable = pgTable("stocks", {
   type: text("type").notNull().default("stock"), // stock | crypto
   volatility: real("volatility").notNull().default(0.05),
   trend: real("trend").notNull().default(0),
+  priceHistory: text("price_history").notNull().default("[]"), // JSON array, last 12 prices
+  emoji: text("emoji").notNull().default("📊"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const insertStockSchema = createInsertSchema(stocksTable).omit({
-  id: true,
-  updatedAt: true,
+  id: true, updatedAt: true,
 });
 export type InsertStock = z.infer<typeof insertStockSchema>;
 export type Stock = typeof stocksTable.$inferSelect;
@@ -32,9 +33,7 @@ export const userStocksTable = pgTable("user_stocks", {
 });
 
 export const insertUserStockSchema = createInsertSchema(userStocksTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+  id: true, createdAt: true, updatedAt: true,
 });
 export type InsertUserStock = z.infer<typeof insertUserStockSchema>;
 export type UserStock = typeof userStocksTable.$inferSelect;
@@ -52,3 +51,18 @@ export const derivativesPositionsTable = pgTable("derivatives_positions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 export type DerivativesPosition = typeof derivativesPositionsTable.$inferSelect;
+
+export const marketEventsTable = pgTable("market_events", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull(),  // MOON|CRASH|PUMP|DUMP|BULL|BEAR|NEWS
+  emoji: text("emoji").notNull().default("📰"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  affectedSymbol: text("affected_symbol"), // null = toàn thị trường, "crypto"/"stock" = nhóm, hoặc mã cụ thể
+  trendBoost: real("trend_boost").notNull().default(0),
+  volatilityMult: real("volatility_mult").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+export type MarketEvent = typeof marketEventsTable.$inferSelect;
