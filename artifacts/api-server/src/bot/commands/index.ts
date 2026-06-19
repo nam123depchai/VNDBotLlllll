@@ -41,6 +41,7 @@ import * as nhapcode from "./nhapcode.js";
 import * as help from "./help.js";
 import * as quyengop from "./quyengop.js";
 import * as longshort from "./longshort.js";
+import * as bieudo from "./bieudo.js";
 import type { SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -96,6 +97,7 @@ export const commands: Map<string, Command> = new Map([
   [help.data.name, help as Command],
   [quyengop.data.name, quyengop as Command],
   [longshort.data.name, longshort as Command],
+  [bieudo.data.name, bieudo as Command],
 ]);
 
 export const commandBuilders = [
@@ -145,4 +147,5 @@ export const commandBuilders = [
   help.data.toJSON(),
   quyengop.data.toJSON(),
   longshort.data.toJSON(),
+  bieudo.data.toJSON()
 ];
