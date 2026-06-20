@@ -42,6 +42,11 @@ import * as help from "./help.js";
 import * as quyengop from "./quyengop.js";
 import * as longshort from "./longshort.js";
 import * as bieudo from "./bieudo.js";
+import * as taocoin from "./taocoin.js";
+import * as muacoin from "./muacoin.js";
+import * as bancoin from "./bancoin.js";
+import * as chocoin from "./chocoin.js";
+import * as quydautu from "./quydautu.js";
 import type { SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -98,6 +103,11 @@ export const commands: Map<string, Command> = new Map([
   [quyengop.data.name, quyengop as Command],
   [longshort.data.name, longshort as Command],
   [bieudo.data.name, bieudo as Command],
+  [taocoin.data.name, taocoin as Command],
+  [muacoin.data.name, muacoin as Command],
+  [bancoin.data.name, bancoin as Command],
+  [chocoin.data.name, chocoin as Command],
+  [quydautu.data.name, quydautu as Command],
 ]);
 
 export const commandBuilders = [
@@ -147,5 +157,10 @@ export const commandBuilders = [
   help.data.toJSON(),
   quyengop.data.toJSON(),
   longshort.data.toJSON(),
-  bieudo.data.toJSON()
+  bieudo.data.toJSON(),
+  taocoin.data.toJSON(),
+  muacoin.data.toJSON(),
+  bancoin.data.toJSON(),
+  chocoin.data.toJSON(),
+  quydautu.data.toJSON()
 ];

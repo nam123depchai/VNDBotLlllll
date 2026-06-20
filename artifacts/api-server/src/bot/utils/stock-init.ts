@@ -1,4 +1,4 @@
-import { db, stocksTable, marketEventsTable } from "@workspace/db";
+import { db, stocksTable, marketEventsTable, userCoinsTable } from "@workspace/db";
 import { eq, and, lte } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════
@@ -121,6 +121,26 @@ export async function updateStockPrices(): Promise<void> {
       priceHistory: JSON.stringify(history),
       updatedAt: new Date(),
     }).where(eq(stocksTable.id, s.id));
+  }
+
+  // Coin tự tạo cũng biến động giá theo cùng cơ chế (không bị ảnh hưởng bởi market events)
+  const userCoins = await db.select().from(userCoinsTable).where(eq(userCoinsTable.isActive, true));
+  for (const c of userCoins) {
+    const rand = (Math.random() - 0.5) * 2;
+    const change = c.price * (c.trend * 0.1 + c.volatility * rand * 0.3);
+    const newPrice = Math.max(10, Math.floor(c.price + change));
+
+    let history: number[] = [];
+    try { history = JSON.parse(c.priceHistory ?? "[]"); } catch {}
+    history.push(c.price);
+    if (history.length > 12) history = history.slice(-12);
+
+    await db.update(userCoinsTable).set({
+      prevPrice: c.price,
+      price: newPrice,
+      priceHistory: JSON.stringify(history),
+      updatedAt: new Date(),
+    }).where(eq(userCoinsTable.id, c.id));
   }
 
   await maybeFireEvent();

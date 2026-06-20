@@ -10,6 +10,7 @@ import { logger } from "../lib/logger.js";
 import { commands, commandBuilders } from "./commands/index.js";
 import { initStocks, updateStockPrices } from "./utils/stock-init.js";
 import { runCharity } from "./utils/charity.js";
+import { runFundAutoInvest } from "./utils/fund-auto-invest.js";
 
 async function registerCommands(token: string, clientId: string): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(token);
@@ -78,6 +79,11 @@ export async function startBot(): Promise<void> {
     setInterval(() => {
       updateStockPrices().catch(err => logger.error({ err }, "Lỗi update stock prices"));
     }, 5 * 60 * 1000);
+
+    // Quỹ đầu tư chung tự động mua/bán mỗi 30 phút
+    setInterval(() => {
+      runFundAutoInvest().catch(err => logger.error({ err }, "Lỗi fund auto-invest"));
+    }, 30 * 60 * 1000);
 
     // ========================================================
     // 🔥 HỆ THỐNG TỪ THIỆN: Tự động phát chấn tế mỗi 30 phút
